@@ -71,6 +71,16 @@ The real sync path currently stages output locally instead of writing into home-
 
 This milestone is intentionally staging-first so the install logic can be exercised safely before adding writes into `~/.claude/` or `~/.codex/`.
 
+## Local Ops Workflow
+
+The harness now has a local operations layer around staged installs:
+
+- `./scripts/list-installed.sh` shows the current recorded state for Claude and Codex
+- `./scripts/doctor.sh` checks whether staged output still matches the recorded digests
+- `./scripts/repair.sh` rebuilds staged output by rerunning sync with the recorded profile
+
+These scripts operate only on local repository state in this milestone. They do not modify `~/.claude` or `~/.codex`.
+
 ## Guiding Principle
 
 Use ECC as a reference library of ideas, not as a dependency to mirror wholesale. Every adopted pattern should be understandable and maintainable here.
