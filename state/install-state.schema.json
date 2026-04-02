@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InstallState",
+  "type": "object",
+  "required": [
+    "platform",
+    "installedAt",
+    "profile",
+    "modules",
+    "componentDigests",
+    "targetRoot",
+    "status"
+  ],
+  "properties": {
+    "platform": {
+      "type": "string",
+      "enum": [
+        "claude",
+        "codex"
+      ]
+    },
+    "installedAt": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "profile": {
+      "type": "string"
+    },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "componentDigests": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "targetRoot": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "not-installed",
+        "installed",
+        "drifted"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

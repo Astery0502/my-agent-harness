@@ -1,0 +1,32 @@
+{
+  "modules": [
+    {
+      "id": "core-shared",
+      "components": [
+        "shared-root",
+        "shared-agents",
+        "shared-skills",
+        "shared-commands",
+        "shared-rules"
+      ]
+    },
+    {
+      "id": "claude-runtime",
+      "components": [
+        "claude-platform"
+      ]
+    },
+    {
+      "id": "codex-runtime",
+      "components": [
+        "codex-platform"
+      ]
+    },
+    {
+      "id": "operations",
+      "components": [
+        "operations"
+      ]
+    }
+  ]
+}

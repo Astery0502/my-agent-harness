@@ -1,0 +1,9 @@
+{
+  "platform": "codex",
+  "installedAt": null,
+  "profile": "minimal",
+  "modules": [],
+  "componentDigests": {},
+  "targetRoot": "~/.codex",
+  "status": "not-installed"
+}

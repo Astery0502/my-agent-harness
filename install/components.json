@@ -1,0 +1,63 @@
+{
+  "components": [
+    {
+      "id": "shared-root",
+      "description": "Shared top-level harness guidance",
+      "paths": [
+        "AGENTS.md",
+        "README.md"
+      ]
+    },
+    {
+      "id": "shared-agents",
+      "description": "Reusable shared agents",
+      "paths": [
+        "agents"
+      ]
+    },
+    {
+      "id": "shared-skills",
+      "description": "Reusable shared skills",
+      "paths": [
+        "skills"
+      ]
+    },
+    {
+      "id": "shared-commands",
+      "description": "Reusable command entrypoints",
+      "paths": [
+        "commands"
+      ]
+    },
+    {
+      "id": "shared-rules",
+      "description": "Shared policy and language rule files",
+      "paths": [
+        "rules"
+      ]
+    },
+    {
+      "id": "claude-platform",
+      "description": "Claude-specific base files",
+      "paths": [
+        "platforms/claude"
+      ]
+    },
+    {
+      "id": "codex-platform",
+      "description": "Codex-specific base files",
+      "paths": [
+        "platforms/codex"
+      ]
+    },
+    {
+      "id": "operations",
+      "description": "Operational scripts and install metadata",
+      "paths": [
+        "scripts",
+        "install",
+        "state"
+      ]
+    }
+  ]
+}
