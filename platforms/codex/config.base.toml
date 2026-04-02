@@ -1,0 +1,6 @@
+# Base Codex configuration placeholder.
+
+[harness]
+name = "my-agent-harness"
+platform = "codex"
+profile = "minimal"

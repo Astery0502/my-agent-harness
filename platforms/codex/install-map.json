@@ -1,0 +1,46 @@
+{
+  "platform": "codex",
+  "targetRoot": "~/.codex",
+  "mappings": [
+    {
+      "source": "AGENTS.md",
+      "target": "AGENTS.md",
+      "mode": "shared-base"
+    },
+    {
+      "source": "platforms/codex/AGENTS.supplement.md",
+      "target": "AGENTS.supplement.md",
+      "mode": "platform-supplement"
+    },
+    {
+      "source": "platforms/codex/config.base.toml",
+      "target": "config.toml",
+      "mode": "platform-base"
+    },
+    {
+      "source": "platforms/codex/agents",
+      "target": "agents",
+      "mode": "directory"
+    },
+    {
+      "source": "agents",
+      "target": "shared/agents",
+      "mode": "directory"
+    },
+    {
+      "source": "skills",
+      "target": "skills",
+      "mode": "directory"
+    },
+    {
+      "source": "commands",
+      "target": "commands",
+      "mode": "directory"
+    },
+    {
+      "source": "rules",
+      "target": "rules",
+      "mode": "directory"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "platform": "claude",
+  "targetRoot": "~/.claude",
+  "mappings": [
+    {
+      "source": "AGENTS.md",
+      "target": "AGENTS.md",
+      "mode": "shared-base"
+    },
+    {
+      "source": "platforms/claude/CLAUDE.base.md",
+      "target": "CLAUDE.base.md",
+      "mode": "platform-base"
+    },
+    {
+      "source": "agents",
+      "target": "agents",
+      "mode": "directory"
+    },
+    {
+      "source": "skills",
+      "target": "skills",
+      "mode": "directory"
+    },
+    {
+      "source": "commands",
+      "target": "commands",
+      "mode": "directory"
+    },
+    {
+      "source": "rules",
+      "target": "rules",
+      "mode": "directory"
+    }
+  ]
+}
