@@ -1,30 +1,57 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# shellcheck source=./lib/sync-common.sh
+source "$SCRIPT_DIR/lib/sync-common.sh"
+
 usage() {
   cat <<'EOF'
-Usage: ./scripts/sync-codex.sh [--help]
+Usage: ./scripts/sync-codex.sh [--help] [--profile <id>]
 
-Stub script for syncing harness content into ~/.codex.
-
-Planned responsibilities:
-- read install/profiles.json and install/modules.json
-- read platforms/codex/install-map.json
-- copy or render declared files into ~/.codex
-- update state/codex-install-state.json
+Stage harness content for Codex into a local staging directory.
 
 Current behavior:
-- print this help text
-- exit without modifying runtime files
+- read install/profiles.json and install/modules.json
+- read platforms/codex/install-map.json
+- stage mapped files into state/staging/codex/
+- update state/codex-install-state.json
+- never write into ~/.codex in this milestone
 EOF
 }
 
-case "${1:-}" in
-  --help|-h|"")
+PROFILE="minimal"
+
+while (($# > 0)); do
+  case "$1" in
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --profile)
+      shift
+      [[ $# -gt 0 ]] || sync_fail "--profile requires a value"
+      PROFILE="$1"
+      ;;
+    *)
+      echo "sync-codex.sh: unsupported argument: $1" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+if [[ "${SHOW_HELP:-0}" == "1" ]]; then
     usage
-    ;;
-  *)
-    echo "sync-codex.sh: unsupported argument: $1" >&2
-    exit 1
-    ;;
-esac
+    exit 0
+fi
+
+sync_run \
+  "$REPO_ROOT" \
+  "codex" \
+  "$PROFILE" \
+  "platforms/codex/install-map.json" \
+  "state/codex-install-state.json" \
+  "state/staging/codex"

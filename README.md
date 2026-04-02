@@ -60,6 +60,17 @@ The install model is intentionally explicit:
 4. state files record what was installed and when
 5. doctor and repair scripts check for drift later
 
+## Current Sync Workflow
+
+The real sync path currently stages output locally instead of writing into home-directory runtime targets.
+
+- `./scripts/sync-claude.sh` stages Claude output into `state/staging/claude/`
+- `./scripts/sync-codex.sh` stages Codex output into `state/staging/codex/`
+- both scripts accept an optional `--profile <id>` argument
+- each successful run updates the matching file in `state/`
+
+This milestone is intentionally staging-first so the install logic can be exercised safely before adding writes into `~/.claude/` or `~/.codex/`.
+
 ## Guiding Principle
 
 Use ECC as a reference library of ideas, not as a dependency to mirror wholesale. Every adopted pattern should be understandable and maintainable here.
