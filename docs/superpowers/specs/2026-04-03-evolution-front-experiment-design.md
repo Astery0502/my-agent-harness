@@ -1,6 +1,6 @@
 # Evolution-Front Experiment Design
 
-**Goal:** define a small, opt-in experiment that compares a TDD-centered front-half workflow against an evolution-centered front-half workflow for weak prompts.
+**Goal:** define a small, opt-in experiment that compares a TDD-centered front-half workflow against an evolution-centered front-half workflow for weak prompts, with the evolution path centered on building a closed evidence chain from weak request to provable engineering action.
 
 ## Scope
 
@@ -32,8 +32,11 @@ The comparison should stay narrow:
 2. keep the implementation and verification tail as shared as possible
 3. use intentionally weak prompts rather than clean tasks
 4. preserve process evidence so failures are diagnosable
+5. define an explicit evidence chain that can be reopened when later work exposes a broken link
 
 The baseline is not "bad." It is simply optimized for a different starting condition. A TDD-centered front half works best when the task is already shaped well enough to move quickly into examples, tests, and implementation planning. The evolution-centered front half is intended to help when the prompt is weak, incomplete, misleading, or pointed at the wrong solution.
+
+For the evolution path, the primary output is not just a better idea. The primary output is a closed evidence chain that turns a clarified request into a provable engineering process.
 
 ## Comparison Target
 
@@ -53,6 +56,7 @@ The experiment is primarily about:
 - breadth before commitment
 - early rejection of weak assumptions
 - lightweight probing before convergence
+- construction of a complete evidence chain
 - reduction of downstream local-fix thrashing
 
 ## Workflow Designs
@@ -104,6 +108,23 @@ This phase should:
 - freeze one workable constraint set before implementation planning
 
 The challenger should then hand off into the same implementation tail the baseline uses.
+
+## Closed Evidence Chain
+
+The evolution path should be organized around one main requirement:
+
+`every important downstream action should be traceable back through a visible evidence chain`
+
+For this experiment, the minimum chain should be:
+
+`original prompt -> clarified request -> candidate interpretations -> rejected assumptions -> chosen constraints -> probe evidence -> draft acceptance criteria -> downstream implementation outcome`
+
+This chain should be closed in two senses:
+
+- it should be complete enough that implementation can be justified rather than improvised
+- when downstream work fails, the workflow should be able to reopen the specific broken link instead of guessing blindly
+
+The practical goal is to transform a vague idea into a provable engineering process. The evolution path should therefore optimize for traceability, justification, and reopenability rather than only for fast convergence.
 
 ## Why The Challenger Is Compressed
 
@@ -161,9 +182,27 @@ This stage should measure whether the challenger reduces:
 - local-fix thrashing
 - avoidable upstream reinterpretation
 
+## Evidence Chain Record
+
+Each evolution-front run should produce one primary artifact: an `evidence chain record`.
+
+It should contain:
+
+- original prompt
+- clarified request
+- alternatives considered
+- rejected assumptions
+- chosen direction
+- chosen constraints
+- probe evidence
+- draft acceptance criteria
+- reopen notes if later implementation breaks the chain
+
+This is the core white-box record for the challenger workflow.
+
 ## Constraint Packet
 
-Each front-half run should produce one compact handoff artifact called a `constraint packet`.
+Each front-half run should also produce one compact handoff artifact called a `constraint packet`.
 
 It should contain:
 
@@ -175,7 +214,7 @@ It should contain:
 - probe evidence
 - draft acceptance criteria
 
-This packet is the main output used for comparison.
+This packet is a frozen handoff snapshot derived from the fuller evidence chain. It is the comparison-friendly output, but it should not replace the evidence chain record.
 
 ## White-Box Evidence
 
@@ -188,6 +227,7 @@ Each run should keep:
 - alternatives considered
 - rejected assumptions
 - probe evidence
+- evidence chain record
 - final constraint packet
 - reopen events during any later implementation run
 
@@ -202,6 +242,7 @@ For each run, record:
 - `ambiguity surfaced early`: `low / medium / high`
 - `breadth before commitment`: `low / medium / high`
 - `wrong-path avoidance`: `low / medium / high`
+- `evidence-chain completeness`: `low / medium / high`
 - `constraint stability`: `low / medium / high`
 - `diagnosability`: `low / medium / high`
 - `downstream churn`: `low / medium / high` for shared-tail runs
@@ -233,6 +274,7 @@ Use it to assess:
 - where correction enters the loop
 - whether upstream assumptions can be reopened early
 - whether the workflow converges or oscillates through local retries
+- whether a broken result can be traced to a broken upstream link in the evidence chain
 
 ### Constraint formalization
 
@@ -244,6 +286,7 @@ Use it to assess:
 - whether contradictions are removed
 - whether hidden dependencies are surfaced
 - whether the handoff is stable enough to support implementation
+- whether the engineering path is justified by evidence rather than only preference
 
 ### Observability
 
@@ -254,6 +297,7 @@ Use it to assess:
 - whether reasons for path selection are visible
 - whether bad assumptions can be located
 - whether the workflow exposes process evidence rather than only outcome
+- whether the full chain from request to engineering decision can be inspected after the fact
 
 ## Rollout Recommendation
 
@@ -281,6 +325,7 @@ The experiment is successful if it shows, across repeated weak-prompt runs, that
 - surfaces important ambiguity earlier
 - broadens enough before commitment to avoid fragile path selection
 - uses cheap probes to remove bad options
+- builds a more complete evidence chain before implementation starts
 - produces more stable constraint packets
 - reduces downstream local-fix thrashing
 - makes failures easier to diagnose

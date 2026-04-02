@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** implement an opt-in evolution-front workflow experiment in `my-agent-harness` so weak prompts can be handled by `clarify -> broaden/critique -> probe/freeze` before handing off to the same downstream implementation tail as the baseline TDD-oriented path.
+**Goal:** implement an opt-in evolution-front workflow experiment in `my-agent-harness` so weak prompts can be handled by `clarify -> broaden/critique -> probe/freeze` before handing off to the same downstream implementation tail as the baseline TDD-oriented path, with the evolution workflow centered on building a closed evidence chain.
 
-**Architecture:** the implementation should keep the baseline `/plan` path intact while making its front-half contract more explicit, then add one new opt-in experiment entrypoint with its own agent and skill assets. Because shared `agents/`, `commands/`, and `skills/` directories are already staged wholesale by the sync scripts, the implementation can stay lightweight: mostly new markdown assets plus a focused integration test that proves the new surfaces stage correctly for both Claude and Codex.
+**Architecture:** the implementation should keep the baseline `/plan` path intact while making its front-half contract more explicit, then add one new opt-in experiment entrypoint with its own agent and skill assets. The challenger workflow should treat an `evidence chain record` as its primary artifact and emit a smaller `constraint packet` as a frozen handoff derived from that chain. Because shared `agents/`, `commands/`, and `skills/` directories are already staged wholesale by the sync scripts, the implementation can stay lightweight: mostly new markdown assets plus a focused integration test that proves the new surfaces stage correctly for both Claude and Codex.
 
 **Tech Stack:** Markdown harness assets, Bash sync and integration tests, staged filesystem verification
 
@@ -17,8 +17,8 @@
 - `agents/evolution-planner.md`
 - `commands/evolution-plan.md`
 - `skills/evolution-front-experiment/SKILL.md`
+- `skills/evolution-front-experiment/templates/evidence-chain.md`
 - `skills/evolution-front-experiment/templates/constraint-packet.md`
-- `skills/evolution-front-experiment/templates/run-sheet.md`
 - `docs/evolution-front-experiment.md`
 - `tests/test-evolution-front-experiment.sh`
 
@@ -53,6 +53,7 @@ Cover:
 - staged Codex output includes the new experiment command, skill assets, and shared agent
 - baseline `/plan` assets mention the shared `constraint packet` handoff
 - challenger assets mention the three operational phases
+- challenger assets mention the `evidence chain` as the primary artifact
 
 - [ ] **Step 2: Run the new test to verify failure**
 
@@ -121,8 +122,8 @@ git commit -m "feat: define baseline front-half contract"
 
 **Files:**
 - Create: `skills/evolution-front-experiment/SKILL.md`
+- Create: `skills/evolution-front-experiment/templates/evidence-chain.md`
 - Create: `skills/evolution-front-experiment/templates/constraint-packet.md`
-- Create: `skills/evolution-front-experiment/templates/run-sheet.md`
 - Test: challenger skill documents the three-phase workflow and white-box outputs
 
 - [ ] **Step 1: Write `skills/evolution-front-experiment/SKILL.md`**
@@ -132,9 +133,24 @@ Document:
 - this is opt-in and experimental
 - the three operational phases: `clarify`, `broaden and critique`, `probe and freeze`
 - internal checkpoints preserved inside those phases
+- the `evidence chain record` is the primary artifact
 - the shared downstream handoff into the same implementation tail as baseline
 
-- [ ] **Step 2: Add the `constraint-packet` template**
+- [ ] **Step 2: Add the `evidence-chain` template**
+
+Include sections for:
+
+- original prompt
+- clarified request
+- alternatives considered
+- rejected assumptions
+- chosen direction
+- chosen constraints
+- probe evidence
+- draft acceptance criteria
+- reopen notes
+
+- [ ] **Step 3: Add the `constraint-packet` template**
 
 Include sections for:
 
@@ -146,25 +162,12 @@ Include sections for:
 - probe evidence
 - draft acceptance criteria
 
-- [ ] **Step 3: Add the `run-sheet` template**
-
-Include fields for:
-
-- original prompt
-- workflow used
-- clarifications
-- alternatives considered
-- rejected assumptions
-- probe evidence
-- final constraint packet link or inline summary
-- rubric fields
-
 - [ ] **Step 4: Run targeted content checks**
 
 Run:
 
 ```bash
-rg -n "clarify|broaden|probe|constraint packet|ambiguity surfaced early|diagnosability" skills/evolution-front-experiment
+rg -n "clarify|broaden|probe|evidence chain|constraint packet|ambiguity surfaced early|diagnosability" skills/evolution-front-experiment
 ```
 
 Expected: the skill and templates contain the agreed experiment vocabulary
@@ -189,6 +192,7 @@ Define ownership for:
 
 - running the three operational phases
 - keeping the experiment narrow and opt-in
+- building a closed evidence chain before downstream planning
 - freezing a constraint set before downstream planning
 - preserving white-box evidence rather than only a final recommendation
 
@@ -199,6 +203,7 @@ Document:
 - this is the experimental entrypoint
 - it dispatches to `agents/evolution-planner.md`
 - it consults `skills/evolution-front-experiment/SKILL.md`
+- it builds an evidence chain record before freezing a handoff
 - it uses the shared `constraint packet` handoff
 
 - [ ] **Step 3: Verify baseline and challenger entrypoints are distinct**
@@ -231,6 +236,7 @@ Document:
 
 - experiment purpose
 - baseline vs challenger comparison shape
+- the evidence chain requirement and why it matters
 - the two-stage test design
 - the semi-structured rubric
 - the four theory lenses: decision theory, control theory, constraint formalization, observability
@@ -241,6 +247,7 @@ Add a short section describing:
 
 - the existence of the opt-in experiment
 - that it targets weak prompts
+- that it builds a closed evidence chain before implementation
 - that it does not replace the default path yet
 
 - [ ] **Step 3: Run targeted content checks**
@@ -248,7 +255,7 @@ Add a short section describing:
 Run:
 
 ```bash
-rg -n "evolution-front|weak prompts|decision theory|control theory|constraint formalization|observability" README.md docs/evolution-front-experiment.md
+rg -n "evolution-front|weak prompts|evidence chain|decision theory|control theory|constraint formalization|observability" README.md docs/evolution-front-experiment.md
 ```
 
 Expected: repo docs mention the experiment and its interpretation lenses clearly
@@ -293,6 +300,7 @@ Confirm:
 
 - the baseline path stayed intact
 - the challenger stayed opt-in
+- the evidence chain is the primary challenger artifact
 - the constraint packet contract is shared between both paths
 - the experiment assets remain small and understandable
 
@@ -302,6 +310,7 @@ Call out:
 
 - the experiment is still documentation-driven, not hook-enforced
 - the rubric is semi-structured and still partly operator-judged
+- the evidence chain is only useful if later execution keeps it updated when links break
 - further promotion should wait for repeated weak-prompt trials
 
 - [ ] **Step 3: Prepare execution handoff**
