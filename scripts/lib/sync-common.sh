@@ -97,61 +97,24 @@ sync_path_digest() {
   sync_fail "cannot digest missing path: $path"
 }
 
-sync_run() {
+sync_prepare_repo_context() {
   local repo_root_input="$1"
-  local platform="$2"
-  local profile="$3"
-  local install_map_rel="$4"
-  local state_file_rel="$5"
-  local staging_rel="$6"
   local repo_root
-  local profiles_json="$repo_root/install/profiles.json"
-  local modules_json="$repo_root/install/modules.json"
-  local components_json="$repo_root/install/components.json"
-  local install_map_json="$repo_root/$install_map_rel"
-  local state_file="$repo_root/$state_file_rel"
-  local staging_root="$repo_root/$staging_rel"
-  local work_dir
-  local modules_file
-  local components_file
-  local allowed_paths_file
-  local component_paths_file
-  local seen_targets_file
-  local component_targets_file
-  local component_digests_json
-  local installed_at
-  local modules_json_value
-  local mapping
-  local source_path
-  local target_path
-  local resolved_source
-  local destination_path
-  local component_id
-  local component_digest
-  local target_digest
-  local current_component
 
   sync_require_command jq
   sync_require_command shasum
   sync_require_command realpath
 
   repo_root="$(realpath "$repo_root_input")"
-  profiles_json="$repo_root/install/profiles.json"
-  modules_json="$repo_root/install/modules.json"
-  components_json="$repo_root/install/components.json"
-  install_map_json="$repo_root/$install_map_rel"
-  state_file="$repo_root/$state_file_rel"
-  staging_root="$repo_root/$staging_rel"
+  printf '%s\n' "$repo_root"
+}
 
-  work_dir="$(mktemp -d)"
-  trap 'rm -rf "$work_dir"' RETURN
-
-  modules_file="$work_dir/modules.txt"
-  components_file="$work_dir/components.txt"
-  allowed_paths_file="$work_dir/allowed-paths.txt"
-  component_paths_file="$work_dir/component-paths.tsv"
-  seen_targets_file="$work_dir/seen-targets.txt"
-  component_targets_file="$work_dir/component-targets.tsv"
+sync_resolve_profile_modules() {
+  local profiles_json="$1"
+  local modules_json="$2"
+  local profile="$3"
+  local modules_file="$4"
+  local current_module
 
   jq -r --arg profile "$profile" '
     .profiles[]
@@ -161,16 +124,23 @@ sync_run() {
 
   [[ -s "$modules_file" ]] || sync_fail "unknown or empty profile: $profile"
 
-  while IFS= read -r current_component; do
-    jq -e --arg module "$current_component" '
+  while IFS= read -r current_module; do
+    jq -e --arg module "$current_module" '
       .modules[]
       | select(.id == $module)
-    ' "$modules_json" >/dev/null || sync_fail "profile references unknown module: $current_component"
+    ' "$modules_json" >/dev/null || sync_fail "profile references unknown module: $current_module"
   done < "$modules_file"
+}
+
+sync_resolve_module_components() {
+  local modules_json="$1"
+  local modules_file="$2"
+  local components_file="$3"
+  local current_module
 
   : > "$components_file"
-  while IFS= read -r current_component; do
-    jq -r --arg module "$current_component" '
+  while IFS= read -r current_module; do
+    jq -r --arg module "$current_module" '
       .modules[]
       | select(.id == $module)
       | .components[]
@@ -178,10 +148,20 @@ sync_run() {
   done < "$modules_file"
 
   LC_ALL=C sort -u "$components_file" -o "$components_file"
-  [[ -s "$components_file" ]] || sync_fail "profile resolved to zero components: $profile"
+  [[ -s "$components_file" ]] || sync_fail "resolved zero components"
+}
+
+sync_resolve_component_paths() {
+  local components_json="$1"
+  local components_file="$2"
+  local allowed_paths_file="$3"
+  local component_paths_file="$4"
+  local current_component
+  local source_path
 
   : > "$allowed_paths_file"
   : > "$component_paths_file"
+
   while IFS= read -r current_component; do
     jq -e --arg component "$current_component" '
       .components[]
@@ -200,11 +180,23 @@ sync_run() {
   done < "$components_file"
 
   LC_ALL=C sort -u "$allowed_paths_file" -o "$allowed_paths_file"
+}
 
-  rm -rf "$staging_root"
-  mkdir -p "$staging_root"
-  : > "$seen_targets_file"
+sync_collect_component_targets() {
+  local repo_root="$1"
+  local install_map_json="$2"
+  local allowed_paths_file="$3"
+  local component_paths_file="$4"
+  local component_targets_file="$5"
+  local seen_targets_file="$6"
+  local mapping
+  local source_path
+  local target_path
+  local resolved_source
+  local component_id
+
   : > "$component_targets_file"
+  : > "$seen_targets_file"
 
   while IFS= read -r mapping; do
     source_path="$(printf '%s' "$mapping" | jq -r '.source')"
@@ -227,6 +219,102 @@ sync_run() {
     printf '%s\n' "$target_path" >> "$seen_targets_file"
 
     component_id="$(sync_component_for_source "$source_path" "$component_paths_file")"
+    printf '%s\t%s\t%s\n' "$component_id" "$source_path" "$target_path" >> "$component_targets_file"
+  done < <(jq -c '.mappings[]' "$install_map_json")
+}
+
+sync_compute_component_digests_from_targets() {
+  local staging_root="$1"
+  local component_targets_file="$2"
+  local component_digests_json='{}'
+  local current_component
+  local component_digest
+  local target_digest
+  local component_id
+  local source_path
+  local target_path
+
+  if [[ -s "$component_targets_file" ]]; then
+    while IFS= read -r current_component; do
+      component_digest="$(
+        while IFS=$'\t' read -r component_id source_path target_path; do
+          [[ "$component_id" == "$current_component" ]] || continue
+          target_digest="$(sync_path_digest "$staging_root/$target_path")"
+          printf '%s %s\n' "$target_path" "$target_digest"
+        done < "$component_targets_file" | LC_ALL=C sort | shasum -a 256 | awk '{print $1}'
+      )"
+      component_digests_json="$(
+        jq -c --arg key "$current_component" --arg value "$component_digest" '. + {($key): $value}' <<<"$component_digests_json"
+      )"
+    done < <(cut -f1 "$component_targets_file" | LC_ALL=C sort -u)
+  fi
+
+  printf '%s\n' "$component_digests_json"
+}
+
+sync_run() {
+  local repo_root_input="$1"
+  local platform="$2"
+  local profile="$3"
+  local install_map_rel="$4"
+  local state_file_rel="$5"
+  local staging_rel="$6"
+  local repo_root
+  local profiles_json
+  local modules_json
+  local components_json
+  local install_map_json
+  local state_file
+  local staging_root
+  local work_dir
+  local modules_file
+  local components_file
+  local allowed_paths_file
+  local component_paths_file
+  local seen_targets_file
+  local component_targets_file
+  local component_digests_json
+  local installed_at
+  local modules_json_value
+  local source_path
+  local target_path
+  local resolved_source
+  local destination_path
+  local component_id
+  local source_entry
+
+  repo_root="$(sync_prepare_repo_context "$repo_root_input")"
+  profiles_json="$repo_root/install/profiles.json"
+  modules_json="$repo_root/install/modules.json"
+  components_json="$repo_root/install/components.json"
+  install_map_json="$repo_root/$install_map_rel"
+  state_file="$repo_root/$state_file_rel"
+  staging_root="$repo_root/$staging_rel"
+
+  sync_require_command jq
+  sync_require_command shasum
+  sync_require_command realpath
+
+  work_dir="$(mktemp -d)"
+  trap 'rm -rf "$work_dir"' RETURN
+
+  modules_file="$work_dir/modules.txt"
+  components_file="$work_dir/components.txt"
+  allowed_paths_file="$work_dir/allowed-paths.txt"
+  component_paths_file="$work_dir/component-paths.tsv"
+  seen_targets_file="$work_dir/seen-targets.txt"
+  component_targets_file="$work_dir/component-targets.tsv"
+
+  sync_resolve_profile_modules "$profiles_json" "$modules_json" "$profile" "$modules_file"
+  sync_resolve_module_components "$modules_json" "$modules_file" "$components_file"
+  sync_resolve_component_paths "$components_json" "$components_file" "$allowed_paths_file" "$component_paths_file"
+  sync_collect_component_targets "$repo_root" "$install_map_json" "$allowed_paths_file" "$component_paths_file" "$component_targets_file" "$seen_targets_file"
+
+  rm -rf "$staging_root"
+  mkdir -p "$staging_root"
+
+  while IFS=$'\t' read -r component_id source_path target_path; do
+    resolved_source="$(realpath "$repo_root/$source_path")"
     destination_path="$staging_root/$target_path"
 
     if [[ -f "$resolved_source" ]]; then
@@ -240,25 +328,9 @@ sync_run() {
     else
       sync_fail "unsupported install map source type: $source_path"
     fi
+  done < "$component_targets_file"
 
-    printf '%s\t%s\n' "$component_id" "$target_path" >> "$component_targets_file"
-  done < <(jq -c '.mappings[]' "$install_map_json")
-
-  component_digests_json='{}'
-  if [[ -s "$component_targets_file" ]]; then
-    while IFS= read -r current_component; do
-      component_digest="$(
-        while IFS=$'\t' read -r component_id target_path; do
-          [[ "$component_id" == "$current_component" ]] || continue
-          target_digest="$(sync_path_digest "$staging_root/$target_path")"
-          printf '%s %s\n' "$target_path" "$target_digest"
-        done < "$component_targets_file" | LC_ALL=C sort | shasum -a 256 | awk '{print $1}'
-      )"
-      component_digests_json="$(
-        jq -c --arg key "$current_component" --arg value "$component_digest" '. + {($key): $value}' <<<"$component_digests_json"
-      )"
-    done < <(cut -f1 "$component_targets_file" | LC_ALL=C sort -u)
-  fi
+  component_digests_json="$(sync_compute_component_digests_from_targets "$staging_root" "$component_targets_file")"
 
   installed_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   modules_json_value="$(jq -R -s 'split("\n") | map(select(length > 0))' "$modules_file")"
