@@ -43,7 +43,9 @@ assert_file_not_contains() {
   local path="$1"
   local needle="$2"
   [[ -f "$path" ]] || fail "expected file to exist before checking contents: $path"
-  grep -Fq "$needle" "$path" && fail "expected $path to not contain: $needle"
+  if grep -Fq "$needle" "$path"; then
+    fail "expected $path to not contain: $needle"
+  fi
 }
 
 trap cleanup EXIT
