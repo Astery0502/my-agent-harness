@@ -38,6 +38,7 @@
 - `tests/test-staging-sync.sh`
 - `tests/test-local-ops.sh`
 - `docs/superpowers/specs/2026-04-03-evolution-front-experiment-design.md`
+- `docs/evidence-chain-model.md`
 
 ## Task 1: Add failing integration coverage for the experiment surfaces
 
@@ -54,6 +55,8 @@ Cover:
 - baseline `/plan` assets mention the shared `constraint packet` handoff
 - challenger assets mention the three operational phases
 - challenger assets mention the `evidence chain` as the primary artifact
+- challenger assets match the minimum required schema from `docs/evidence-chain-model.md`
+- challenger assets mention `probe_evidence`, `reopen_event`, and the freeze rule
 
 - [ ] **Step 2: Run the new test to verify failure**
 
@@ -134,21 +137,25 @@ Document:
 - the three operational phases: `clarify`, `broaden and critique`, `probe and freeze`
 - internal checkpoints preserved inside those phases
 - the `evidence chain record` is the primary artifact
+- the record follows the minimum required schema in `docs/evidence-chain-model.md`
+- probe outputs follow the `probe_evidence` structure
+- reopen behavior follows the `reopen_event` structure
+- freezing requires the documented freeze rule rather than informal confidence alone
 - the shared downstream handoff into the same implementation tail as baseline
 
 - [ ] **Step 2: Add the `evidence-chain` template**
 
 Include sections for:
 
-- original prompt
 - clarified request
-- alternatives considered
-- rejected assumptions
-- chosen direction
-- chosen constraints
+- suspect claims
+- candidate strategies
+- accepted constraints
+- rejected constraints
 - probe evidence
-- draft acceptance criteria
-- reopen notes
+- frozen decision
+- verification target
+- reopen trigger
 
 - [ ] **Step 3: Add the `constraint-packet` template**
 
@@ -167,7 +174,7 @@ Include sections for:
 Run:
 
 ```bash
-rg -n "clarify|broaden|probe|evidence chain|constraint packet|ambiguity surfaced early|diagnosability" skills/evolution-front-experiment
+rg -n "clarify|broaden|probe|evidence chain|constraint packet|probe_evidence|reopen_event|freeze rule|ambiguity surfaced early|diagnosability" skills/evolution-front-experiment
 ```
 
 Expected: the skill and templates contain the agreed experiment vocabulary
@@ -194,6 +201,7 @@ Define ownership for:
 - keeping the experiment narrow and opt-in
 - building a closed evidence chain before downstream planning
 - freezing a constraint set before downstream planning
+- reopening the nearest broken upstream link when local patching is no longer justified
 - preserving white-box evidence rather than only a final recommendation
 
 - [ ] **Step 2: Write `commands/evolution-plan.md`**
@@ -204,6 +212,7 @@ Document:
 - it dispatches to `agents/evolution-planner.md`
 - it consults `skills/evolution-front-experiment/SKILL.md`
 - it builds an evidence chain record before freezing a handoff
+- it records `probe_evidence` and `reopen_event` when those controls are used
 - it uses the shared `constraint packet` handoff
 
 - [ ] **Step 3: Verify baseline and challenger entrypoints are distinct**
@@ -237,6 +246,8 @@ Document:
 - experiment purpose
 - baseline vs challenger comparison shape
 - the evidence chain requirement and why it matters
+- the minimum required schema and why it stays intentionally small
+- the reopen policy, local-patch limit, and probe budget
 - the two-stage test design
 - the semi-structured rubric
 - the four theory lenses: decision theory, control theory, constraint formalization, observability
@@ -255,7 +266,7 @@ Add a short section describing:
 Run:
 
 ```bash
-rg -n "evolution-front|weak prompts|evidence chain|decision theory|control theory|constraint formalization|observability" README.md docs/evolution-front-experiment.md
+rg -n "evolution-front|weak prompts|evidence chain|reopen|probe budget|decision theory|control theory|constraint formalization|observability" README.md docs/evolution-front-experiment.md
 ```
 
 Expected: repo docs mention the experiment and its interpretation lenses clearly
@@ -301,6 +312,8 @@ Confirm:
 - the baseline path stayed intact
 - the challenger stayed opt-in
 - the evidence chain is the primary challenger artifact
+- the primary artifact follows the minimum required schema rather than an oversized record
+- control behavior for probing, freezing, and reopening is explicit
 - the constraint packet contract is shared between both paths
 - the experiment assets remain small and understandable
 

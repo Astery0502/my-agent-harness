@@ -38,6 +38,8 @@ The baseline is not "bad." It is simply optimized for a different starting condi
 
 For the evolution path, the primary output is not just a better idea. The primary output is a closed evidence chain that turns a clarified request into a provable engineering process.
 
+The exact phase input and output model for that chain is defined in [evidence-chain-model.md](/Users/astery/src/ai/my-agent-harness/docs/evidence-chain-model.md).
+
 ## Comparison Target
 
 The main question is:
@@ -126,6 +128,8 @@ This chain should be closed in two senses:
 
 The practical goal is to transform a vague idea into a provable engineering process. The evolution path should therefore optimize for traceability, justification, and reopenability rather than only for fast convergence.
 
+The control rules for reopening and probe budgeting are defined in [evidence-chain-model.md](/Users/astery/src/ai/my-agent-harness/docs/evidence-chain-model.md).
+
 ## Why The Challenger Is Compressed
 
 The source note contains more fine-grained reasoning before any later red-team or blue-team work.
@@ -182,23 +186,33 @@ This stage should measure whether the challenger reduces:
 - local-fix thrashing
 - avoidable upstream reinterpretation
 
+This stage should also evaluate whether reopen behavior followed policy:
+
+- upstream reopening happened when local patching stopped being justified
+- the reopened phase matched the nearest broken link
+- probe effort stayed small and decision-relevant
+
 ## Evidence Chain Record
 
 Each evolution-front run should produce one primary artifact: an `evidence chain record`.
 
+The exact field contract should follow the minimum required schema in [evidence-chain-model.md](/Users/astery/src/ai/my-agent-harness/docs/evidence-chain-model.md).
+
 It should contain:
 
-- original prompt
 - clarified request
-- alternatives considered
-- rejected assumptions
-- chosen direction
-- chosen constraints
+- suspect claims
+- candidate strategies
+- accepted constraints
+- rejected constraints
 - probe evidence
-- draft acceptance criteria
-- reopen notes if later implementation breaks the chain
+- frozen decision
+- verification target
+- reopen trigger
 
 This is the core white-box record for the challenger workflow.
+
+When the run performs probes or reopen events, those records should also follow the `probe_evidence` and `reopen_event` structures defined in [evidence-chain-model.md](/Users/astery/src/ai/my-agent-harness/docs/evidence-chain-model.md).
 
 ## Constraint Packet
 
@@ -224,10 +238,8 @@ Each run should keep:
 
 - original prompt
 - clarification questions
-- alternatives considered
-- rejected assumptions
+- evidence chain record using the minimum required schema
 - probe evidence
-- evidence chain record
 - final constraint packet
 - reopen events during any later implementation run
 
@@ -244,12 +256,20 @@ For each run, record:
 - `wrong-path avoidance`: `low / medium / high`
 - `evidence-chain completeness`: `low / medium / high`
 - `constraint stability`: `low / medium / high`
+- `reopen discipline`: `low / medium / high`
+- `probe economy`: `low / medium / high`
 - `diagnosability`: `low / medium / high`
 - `downstream churn`: `low / medium / high` for shared-tail runs
 - `direction changed by front-half work`: `yes / no`
 - `notes`: 2-4 lines of concrete evidence
 
 The rubric should be evidence-bearing. Each judgment should point back to preserved artifacts, not only to operator intuition.
+
+At minimum, rubric judgments for the challenger should be supportable from the required fields in the evidence chain record rather than from freeform commentary alone.
+
+`reopen discipline` should reflect whether the workflow reopened the nearest broken link rather than drifting into unbounded local fixes.
+
+`probe economy` should reflect whether probes were both decision-relevant and cheap enough to justify their cost.
 
 ## Theory Lenses
 
