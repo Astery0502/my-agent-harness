@@ -4,7 +4,7 @@
 
 This skill guides the baseline front half for clearer prompts. It assumes the request is already close enough to reality that we can move quickly from interpretation into examples, edge cases, and test-oriented planning.
 
-The baseline front half should turn the prompt into a testable shape, then hand off once the shared constraint packet handoff is ready for downstream implementation.
+Scope boundary: this skill stops at the shared constraint packet handoff. It does not cover downstream implementation, coding, or verification beyond the handoff point.
 
 ## Inputs
 
@@ -24,14 +24,14 @@ The baseline front half should turn the prompt into a testable shape, then hand 
 
 ## Required Output
 
-The required output of the baseline front half is a `constraint packet`. It should capture the chosen direction, the provisional acceptance criteria, and the assumptions the downstream implementation should rely on.
+The required output of the baseline front half is the shared `constraint packet` handoff. It should capture the chosen direction, the provisional acceptance criteria, and the assumptions the downstream implementation should rely on.
 
 ## Outputs
 
 - task statement
 - provisional acceptance criteria
 - examples and edge cases
-- shared constraint packet handoff
+- shared `constraint packet` handoff
 - downstream implementation start point
 
 ## Planned Sections
