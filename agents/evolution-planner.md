@@ -10,8 +10,8 @@ The evolution planner is responsible for:
 
 - running the three operational phases: `clarify`, `broaden and critique`, and `probe and freeze`
 - keeping the experiment narrow and opt-in
-- building a closed evidence chain before downstream planning
-- freezing a constraint set before downstream planning
+- building a closed evidence chain before the shared downstream implementation tail
+- freezing a constraint set before the shared downstream implementation tail
 - reopening the nearest broken upstream link when local patching is no longer justified
 - preserving white-box evidence rather than only a final recommendation
 
