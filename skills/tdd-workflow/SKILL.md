@@ -24,14 +24,14 @@ Scope boundary: this skill stops at the shared constraint packet handoff. It doe
 
 ## Required Output
 
-The required output of the baseline front half is the shared constraint packet handoff, the shared `constraint packet` handoff. It should capture the chosen direction, the provisional acceptance criteria, and the assumptions the downstream implementation should rely on.
+The required output of the baseline front half is the shared constraint packet handoff, meaning the shared `constraint packet` deliverable. It should capture the chosen direction, the provisional acceptance criteria, and the assumptions the downstream implementation should rely on.
 
 ## Outputs
 
 - task statement
 - provisional acceptance criteria
 - examples and edge cases
-- shared constraint packet handoff, the shared `constraint packet` handoff
+- shared constraint packet handoff
 - downstream implementation start point
 
 ## Planned Sections
@@ -41,6 +41,4 @@ The required output of the baseline front half is the shared constraint packet h
 - examples
 - edge cases
 - handoff boundary
-- red
-- green
-- refactor
+- downstream ownership, not this front-half skill
