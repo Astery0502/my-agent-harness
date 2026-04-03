@@ -43,7 +43,7 @@ These phases are compressed for operation, but their internal checkpoints are pr
 
 ## Evidence Chain Record
 
-The evidence chain record is the primary artifact for this experiment. Its minimum required schema follows `docs/evidence-chain-model.md` and must include:
+The evidence chain record is the primary artifact for this experiment. Its minimum required schema must include:
 
 - `clarified_request`
 - `suspect_claims`

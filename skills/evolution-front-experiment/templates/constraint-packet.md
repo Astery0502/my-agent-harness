@@ -26,6 +26,10 @@ This packet is the frozen handoff derived from the evidence chain record. It car
 
 - probe_evidence:
 
+## Verification Target
+
+- verification_target:
+
 ## Draft Acceptance Criteria
 
 - draft_acceptance_criteria:

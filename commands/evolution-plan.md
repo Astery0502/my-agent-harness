@@ -6,7 +6,7 @@ This is the explicit experimental entrypoint for the evolution-front workflow.
 
 ## Dispatch
 
-- `/evolution-plan` dispatches to `agents/evolution-planner.md`.
+- `/evolution-plan` dispatches to the evolution planner agent.
 - It consults `skills/evolution-front-experiment/SKILL.md` to run the experiment path.
 - It keeps the flow opt-in and distinct from the default `/plan` baseline.
 
