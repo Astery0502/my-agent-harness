@@ -80,6 +80,7 @@ A: It means actual first-version files, not just an architecture description.
 Examples:
 
 - `AGENTS.md`
+- `HARNESS.md`
 - `platforms/codex/config.base.toml`
 - `platforms/claude/CLAUDE.base.md`
 - `scripts/sync-claude.sh`
@@ -162,6 +163,7 @@ Create this structure in `my-agent-harness`:
 my-agent-harness/
 ├── README.md
 ├── AGENTS.md
+├── HARNESS.md
 ├── docs/
 │   ├── architecture.md
 │   └── decisions/
@@ -221,7 +223,10 @@ my-agent-harness/
 ## Folder Responsibilities
 
 - `AGENTS.md`
-  Shared philosophy for both Claude Code and Codex.
+  Project-local guidance for working on the harness repo itself.
+
+- `HARNESS.md`
+  Shared installable baseline for Claude Code, Codex, and future runtimes.
 
 - `agents/`
   Reusable specialist roles.
@@ -293,7 +298,7 @@ Should:
 - create `~/.claude` if needed
 - copy `agents/`, `commands/`, `skills/`, and `rules/`
 - generate `~/.claude/CLAUDE.md` from:
-  - repo `AGENTS.md`
+  - repo `HARNESS.md`
   - `platforms/claude/CLAUDE.base.md`
 - write `state/claude-install-state.json`
 
@@ -303,7 +308,7 @@ Should:
 
 - create `~/.codex` if needed
 - generate `~/.codex/AGENTS.md` from:
-  - repo `AGENTS.md`
+  - repo `HARNESS.md`
   - `platforms/codex/AGENTS.supplement.md`
 - copy `platforms/codex/config.base.toml` to `~/.codex/config.toml`
 - generate prompt files from `commands/*.md` into `~/.codex/prompts/`
@@ -500,6 +505,7 @@ Suggested decision-note filenames:
 - add `README.md`
 - add `docs/architecture.md`
 - add `AGENTS.md`
+- add `HARNESS.md`
 
 ### Day 2
 
@@ -565,6 +571,7 @@ If this document is handed to a fresh AI workspace, the next good task is:
    - `README.md`
    - `docs/architecture.md`
    - `AGENTS.md`
+   - `HARNESS.md`
    - `platforms/claude/CLAUDE.base.md`
    - `platforms/codex/AGENTS.supplement.md`
    - `platforms/codex/config.base.toml`

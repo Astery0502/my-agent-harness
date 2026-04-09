@@ -15,7 +15,7 @@ Diagnose local staged harness installs and recorded state.
 
 Current behavior:
 - validate install metadata consistency
-- compare local staged files against recorded component digests
+- compare .local staged files against recorded component digests
 - report healthy, not-installed, drifted, or malformed state
 EOF
 }

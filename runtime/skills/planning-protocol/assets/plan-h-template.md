@@ -1,0 +1,27 @@
+# `plan-h` Output Template
+
+- `mode`:
+- `request_invariant`:
+- `focus`:
+- `non_goals`:
+- `unknowns`:
+- `challenged_assumptions`:
+- `candidate_routes`:
+- `rejected_routes`:
+- `chosen_route`:
+- `why_this_route`:
+- `task_chain`:
+- `imports`:
+- `risks`:
+- `freeze_condition`:
+- `probes`:
+- `probe_results`:
+- `kill_conditions`:
+- `boundary_checks`:
+- `failure_edges`:
+- `mitigations`:
+- `reopen_triggers`:
+- `review_decision`:
+- `frozen_task_chain`:
+- `execution_ready`:
+- `reopen_conditions`:

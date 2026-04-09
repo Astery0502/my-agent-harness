@@ -3,6 +3,11 @@
 export LC_ALL=C
 export LANG=C
 
+SYNC_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=./layout-common.sh
+source "$SYNC_LIB_DIR/layout-common.sh"
+
 sync_fail() {
   echo "sync error: $*" >&2
   exit 1
@@ -182,45 +187,104 @@ sync_resolve_component_paths() {
   LC_ALL=C sort -u "$allowed_paths_file" -o "$allowed_paths_file"
 }
 
-sync_collect_component_targets() {
+sync_collect_mapping_actions() {
   local repo_root="$1"
   local install_map_json="$2"
   local allowed_paths_file="$3"
   local component_paths_file="$4"
-  local component_targets_file="$5"
-  local seen_targets_file="$6"
+  local action_file="$5"
+  local component_targets_file="$6"
+  local seen_targets_file="$7"
   local mapping
   local source_path
   local target_path
+  local mode
   local resolved_source
   local component_id
+  local source_count
 
+  : > "$action_file"
   : > "$component_targets_file"
   : > "$seen_targets_file"
 
   while IFS= read -r mapping; do
-    source_path="$(printf '%s' "$mapping" | jq -r '.source')"
     target_path="$(printf '%s' "$mapping" | jq -r '.target')"
+    mode="$(printf '%s' "$mapping" | jq -r '.mode // "copy"')"
 
-    sync_validate_relative_path "$source_path"
     sync_validate_relative_path "$target_path"
-
-    if ! sync_source_is_allowed "$source_path" "$allowed_paths_file"; then
-      continue
-    fi
-
-    [[ -e "$repo_root/$source_path" ]] || sync_fail "install map source does not exist: $source_path"
-    resolved_source="$(realpath "$repo_root/$source_path")"
-    sync_ensure_inside_repo "$repo_root" "$source_path" "$resolved_source"
 
     if grep -Fxq "$target_path" "$seen_targets_file"; then
       sync_fail "multiple mappings resolve to the same target: $target_path"
     fi
     printf '%s\n' "$target_path" >> "$seen_targets_file"
 
-    component_id="$(sync_component_for_source "$source_path" "$component_paths_file")"
-    printf '%s\t%s\t%s\n' "$component_id" "$source_path" "$target_path" >> "$component_targets_file"
+    case "$mode" in
+      concat)
+        source_count=0
+        while IFS= read -r source_path; do
+          sync_validate_relative_path "$source_path"
+          if ! sync_source_is_allowed "$source_path" "$allowed_paths_file"; then
+            continue
+          fi
+
+          [[ -e "$repo_root/$source_path" ]] || sync_fail "install map source does not exist: $source_path"
+          resolved_source="$(realpath "$repo_root/$source_path")"
+          sync_ensure_inside_repo "$repo_root" "$source_path" "$resolved_source"
+
+          component_id="$(sync_component_for_source "$source_path" "$component_paths_file")"
+          printf '%s\t%s\n' "$component_id" "$target_path" >> "$component_targets_file"
+          source_count=$((source_count + 1))
+        done < <(printf '%s' "$mapping" | jq -r '.sources[]')
+
+        (( source_count > 0 )) || sync_fail "concat mapping resolved zero allowed sources for target: $target_path"
+        printf '%s\n' "$mapping" >> "$action_file"
+        ;;
+      *)
+        source_path="$(printf '%s' "$mapping" | jq -r '.source')"
+        sync_validate_relative_path "$source_path"
+
+        if ! sync_source_is_allowed "$source_path" "$allowed_paths_file"; then
+          continue
+        fi
+
+        [[ -e "$repo_root/$source_path" ]] || sync_fail "install map source does not exist: $source_path"
+        resolved_source="$(realpath "$repo_root/$source_path")"
+        sync_ensure_inside_repo "$repo_root" "$source_path" "$resolved_source"
+
+        component_id="$(sync_component_for_source "$source_path" "$component_paths_file")"
+        printf '%s\t%s\n' "$component_id" "$target_path" >> "$component_targets_file"
+        printf '%s\n' "$mapping" >> "$action_file"
+        ;;
+    esac
   done < <(jq -c '.mappings[]' "$install_map_json")
+
+  LC_ALL=C sort -u "$component_targets_file" -o "$component_targets_file"
+}
+
+sync_validate_component_targets() {
+  local components_file="$1"
+  local component_paths_file="$2"
+  local component_targets_file="$3"
+  local current_component
+  local requires_runtime_target
+
+  while IFS= read -r current_component; do
+    [[ -n "$current_component" ]] || continue
+    requires_runtime_target=0
+    while IFS=$'\t' read -r component_id component_path; do
+      [[ "$component_id" == "$current_component" ]] || continue
+      if [[ "$component_path" == runtime/* ]]; then
+        requires_runtime_target=1
+        break
+      fi
+    done < "$component_paths_file"
+
+    (( requires_runtime_target == 1 )) || continue
+
+    if ! cut -f1 "$component_targets_file" | grep -Fxq "$current_component"; then
+      sync_fail "selected component has no install-map target for platform: $current_component"
+    fi
+  done < "$components_file"
 }
 
 sync_compute_component_digests_from_targets() {
@@ -231,13 +295,12 @@ sync_compute_component_digests_from_targets() {
   local component_digest
   local target_digest
   local component_id
-  local source_path
   local target_path
 
   if [[ -s "$component_targets_file" ]]; then
     while IFS= read -r current_component; do
       component_digest="$(
-        while IFS=$'\t' read -r component_id source_path target_path; do
+        while IFS=$'\t' read -r component_id target_path; do
           [[ "$component_id" == "$current_component" ]] || continue
           target_digest="$(sync_path_digest "$staging_root/$target_path")"
           printf '%s %s\n' "$target_path" "$target_digest"
@@ -256,10 +319,8 @@ sync_run() {
   local repo_root_input="$1"
   local platform="$2"
   local profile="$3"
-  local install_map_rel="$4"
-  local state_file_rel="$5"
-  local staging_rel="$6"
   local repo_root
+  local install_dir
   local profiles_json
   local modules_json
   local components_json
@@ -271,29 +332,35 @@ sync_run() {
   local components_file
   local allowed_paths_file
   local component_paths_file
+  local action_file
   local seen_targets_file
   local component_targets_file
   local component_digests_json
   local installed_at
   local modules_json_value
+  local mapping
+  local mode
   local source_path
   local target_path
+  local destination_dir
   local resolved_source
   local destination_path
-  local component_id
-  local source_entry
+  local first_source
 
   repo_root="$(sync_prepare_repo_context "$repo_root_input")"
-  profiles_json="$repo_root/install/profiles.json"
-  modules_json="$repo_root/install/modules.json"
-  components_json="$repo_root/install/components.json"
-  install_map_json="$repo_root/$install_map_rel"
-  state_file="$repo_root/$state_file_rel"
-  staging_root="$repo_root/$staging_rel"
+  install_dir="$(layout_install_dir "$repo_root")"
+  profiles_json="$install_dir/profiles.json"
+  modules_json="$install_dir/modules.json"
+  components_json="$install_dir/components.json"
+  install_map_json="$(layout_install_map_for "$repo_root" "$platform")"
+  state_file="$(layout_install_state_file_for "$repo_root" "$platform")"
+  staging_root="$(layout_staging_root_for "$repo_root" "$platform")"
 
   sync_require_command jq
   sync_require_command shasum
   sync_require_command realpath
+
+  layout_bootstrap_local_dirs "$repo_root"
 
   work_dir="$(mktemp -d)"
   trap 'rm -rf "$work_dir"' RETURN
@@ -302,38 +369,72 @@ sync_run() {
   components_file="$work_dir/components.txt"
   allowed_paths_file="$work_dir/allowed-paths.txt"
   component_paths_file="$work_dir/component-paths.tsv"
+  action_file="$work_dir/actions.jsonl"
   seen_targets_file="$work_dir/seen-targets.txt"
   component_targets_file="$work_dir/component-targets.tsv"
 
   sync_resolve_profile_modules "$profiles_json" "$modules_json" "$profile" "$modules_file"
   sync_resolve_module_components "$modules_json" "$modules_file" "$components_file"
   sync_resolve_component_paths "$components_json" "$components_file" "$allowed_paths_file" "$component_paths_file"
-  sync_collect_component_targets "$repo_root" "$install_map_json" "$allowed_paths_file" "$component_paths_file" "$component_targets_file" "$seen_targets_file"
+  sync_collect_mapping_actions "$repo_root" "$install_map_json" "$allowed_paths_file" "$component_paths_file" "$action_file" "$component_targets_file" "$seen_targets_file"
+  sync_validate_component_targets "$components_file" "$component_paths_file" "$component_targets_file"
 
   rm -rf "$staging_root"
   mkdir -p "$staging_root"
 
-  while IFS=$'\t' read -r component_id source_path target_path; do
-    resolved_source="$(realpath "$repo_root/$source_path")"
+  while IFS= read -r mapping; do
+    mode="$(printf '%s' "$mapping" | jq -r '.mode // "copy"')"
+    target_path="$(printf '%s' "$mapping" | jq -r '.target')"
     destination_path="$staging_root/$target_path"
+    destination_dir="$(dirname "$destination_path")"
 
-    if [[ -f "$resolved_source" ]]; then
-      mkdir -p "$(dirname "$destination_path")"
-      cp "$resolved_source" "$destination_path"
-    elif [[ -d "$resolved_source" ]]; then
-      mkdir -p "$destination_path"
-      if find "$resolved_source" -mindepth 1 -print -quit | grep -q .; then
-        cp -R "$resolved_source"/. "$destination_path"/
-      fi
-    else
-      sync_fail "unsupported install map source type: $source_path"
-    fi
-  done < "$component_targets_file"
+    case "$mode" in
+      concat)
+        mkdir -p "$destination_dir"
+        : > "$destination_path"
+        first_source=1
+        while IFS= read -r source_path; do
+          if ! sync_source_is_allowed "$source_path" "$allowed_paths_file"; then
+            continue
+          fi
+
+          resolved_source="$(realpath "$repo_root/$source_path")"
+          [[ -f "$resolved_source" ]] || sync_fail "concat mappings require file sources: $source_path"
+
+          if (( first_source == 0 )); then
+            printf '\n\n' >> "$destination_path"
+          fi
+          cat "$resolved_source" >> "$destination_path"
+          first_source=0
+        done < <(printf '%s' "$mapping" | jq -r '.sources[]')
+
+        (( first_source == 0 )) || sync_fail "concat mapping produced no output for target: $target_path"
+        ;;
+      *)
+        source_path="$(printf '%s' "$mapping" | jq -r '.source')"
+        resolved_source="$(realpath "$repo_root/$source_path")"
+
+        if [[ -f "$resolved_source" ]]; then
+          mkdir -p "$destination_dir"
+          cp "$resolved_source" "$destination_path"
+        elif [[ -d "$resolved_source" ]]; then
+          mkdir -p "$destination_path"
+          if find "$resolved_source" -mindepth 1 -print -quit | grep -q .; then
+            cp -R "$resolved_source"/. "$destination_path"/
+          fi
+        else
+          sync_fail "unsupported install map source type: $source_path"
+        fi
+        ;;
+    esac
+  done < "$action_file"
 
   component_digests_json="$(sync_compute_component_digests_from_targets "$staging_root" "$component_targets_file")"
 
   installed_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   modules_json_value="$(jq -R -s 'split("\n") | map(select(length > 0))' "$modules_file")"
+
+  mkdir -p "$(dirname "$state_file")"
 
   jq -n \
     --arg platform "$platform" \

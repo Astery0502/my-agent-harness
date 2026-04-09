@@ -4,75 +4,82 @@ This document explains how `my-agent-harness` is organized and how it should evo
 
 ## Layer Model
 
-The repository is split into three layers:
+The repository is split into four lookup-oriented layers:
 
-1. shared source layer
-2. platform layer
-3. state and operations layer
+1. project guidance
+2. runtime source
+3. ops and local state
+4. docs and tests
 
-## Shared Source Layer
-
-These folders define the durable model of the harness:
+## Project Guidance
 
 - `AGENTS.md`
-- `agents/`
-- `skills/`
-- `commands/`
-- `rules/`
-- `docs/`
-- `install/`
+- `README.md`
+
+`AGENTS.md` is the project-local contract for editing `my-agent-harness`
+itself. `README.md` is the high-level orientation entry point.
+
+## Runtime Source
+
+`runtime/` holds the installable source surface:
+
+- `runtime/HARNESS.md`
+- `runtime/agents/`
+- `runtime/skills/`
+- `runtime/commands/`
+- `runtime/rules/`
+- `runtime/platforms/`
 
 This layer answers:
 
-- what philosophy the harness follows
-- which reusable assets exist
-- which policies and workflows are expected
-- what components are installable
+- what reusable runtime content exists
+- what the cross-platform baseline is
+- how Claude- and Codex-specific overlays differ
 
-## Platform Layer
+## Ops And Local State
 
-These folders adapt the shared model to a specific runtime:
+Tracked operational definitions live in:
 
-- `platforms/claude/`
-- `platforms/codex/`
-
-Each platform folder should stay narrow. It should hold only the base files, supplements, and mapping data that differ by platform.
-
-## State And Operations Layer
-
-These folders make the harness operational:
-
+- `ops/install/`
+- `ops/schema/`
 - `scripts/`
-- `state/`
+
+Ignored generated local output lives in:
+
+- `.local/install-state/`
+- `.local/staging/`
 
 This layer answers:
 
-- what was installed
-- where it was installed
-- what profile or modules were used
-- how drift will be detected and repaired
+- what can be installed
+- how install state is shaped
+- how sync, doctor, repair, and listing operate
+- where mutable local output is stored
 
 ## Install Flow
 
 The intended install flow is:
 
-1. author shared and platform content in the repository
-2. describe installable units in `install/`
-3. map repository assets to runtime targets with platform install maps
+1. author shared and platform content in `runtime/`
+2. describe installable units in `ops/install/`
+3. map repository assets to runtime targets with `runtime/platforms/*/install-map.json`
 4. run sync scripts to install or update runtime files
-5. record results in per-platform install-state files
+5. record results in `.local/install-state/*.json`
 6. use doctor and repair scripts to detect drift and restore consistency
 
 ## Folder Responsibilities
 
-- `agents/`: specialist roles the harness may expose
-- `skills/`: reusable methods and workflows
-- `commands/`: entrypoints that coordinate workflows
-- `rules/`: policy and quality expectations
-- `platforms/`: Claude- and Codex-specific files
-- `install/`: declarative install definitions
+- `runtime/agents/`: specialist roles the harness may expose
+- `runtime/skills/`: reusable methods and workflows
+- `runtime/commands/`: entrypoints that coordinate workflows
+- `runtime/rules/`: policy and quality expectations
+- `runtime/platforms/`: Claude- and Codex-specific runtime files
+- `ops/install/`: declarative install definitions
+- `ops/schema/`: tracked JSON schema and other static ops contracts
 - `scripts/`: operational entrypoints
-- `state/`: install status and drift metadata
+- `.local/`: ignored install status and staged runtime output
+- `docs/reference/`: evergreen lookup docs
+- `docs/archive/`: historical plans and exploratory notes
 - `docs/decisions/`: local architecture decisions
 
 ## Deferred Work

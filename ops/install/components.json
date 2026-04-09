@@ -2,61 +2,60 @@
   "components": [
     {
       "id": "shared-root",
-      "description": "Shared top-level harness guidance",
+      "description": "Shared top-level installable harness guidance",
       "paths": [
-        "AGENTS.md",
-        "README.md"
+        "runtime/HARNESS.md"
       ]
     },
     {
       "id": "shared-agents",
       "description": "Reusable shared agents",
       "paths": [
-        "agents"
+        "runtime/agents"
       ]
     },
     {
       "id": "shared-skills",
       "description": "Reusable shared skills",
       "paths": [
-        "skills"
+        "runtime/skills"
       ]
     },
     {
       "id": "shared-commands",
       "description": "Reusable command entrypoints",
       "paths": [
-        "commands"
+        "runtime/commands"
       ]
     },
     {
       "id": "shared-rules",
       "description": "Shared policy and language rule files",
       "paths": [
-        "rules"
+        "runtime/rules"
       ]
     },
     {
       "id": "claude-platform",
       "description": "Claude-specific base files",
       "paths": [
-        "platforms/claude"
+        "runtime/platforms/claude"
       ]
     },
     {
       "id": "codex-platform",
       "description": "Codex-specific base files",
       "paths": [
-        "platforms/codex"
+        "runtime/platforms/codex"
       ]
     },
     {
       "id": "operations",
-      "description": "Operational scripts and install metadata",
+      "description": "Operational scripts and tracked install metadata",
       "paths": [
         "scripts",
-        "install",
-        "state"
+        "ops/install",
+        "ops/schema"
       ]
     }
   ]

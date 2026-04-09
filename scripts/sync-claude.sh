@@ -14,15 +14,15 @@ Usage: ./scripts/sync-claude.sh [--help] [--profile <id>]
 Stage harness content for Claude into a local staging directory.
 
 Current behavior:
-- read install/profiles.json and install/modules.json
-- read platforms/claude/install-map.json
-- stage mapped files into state/staging/claude/
-- update state/claude-install-state.json
+- read ops/install/profiles.json and ops/install/modules.json
+- read runtime/platforms/claude/install-map.json
+- stage mapped files into .local/staging/claude/
+- update .local/install-state/claude.json
 - never write into ~/.claude in this milestone
 EOF
 }
 
-PROFILE="minimal"
+PROFILE="claude-only"
 
 while (($# > 0)); do
   case "$1" in
@@ -51,7 +51,4 @@ fi
 sync_run \
   "$REPO_ROOT" \
   "claude" \
-  "$PROFILE" \
-  "platforms/claude/install-map.json" \
-  "state/claude-install-state.json" \
-  "state/staging/claude"
+  "$PROFILE"

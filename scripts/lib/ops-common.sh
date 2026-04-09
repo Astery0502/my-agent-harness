@@ -17,26 +17,43 @@ ops_platforms() {
   printf 'claude\ncodex\n'
 }
 
+ops_default_state_json() {
+  local platform="$1"
+
+  jq -n \
+    --arg platform "$platform" \
+    '{
+      platform: $platform,
+      installedAt: null,
+      profile: "",
+      modules: [],
+      componentDigests: {},
+      targetRoot: "",
+      status: "not-installed"
+    }'
+}
+
 ops_state_file_for() {
   local repo_root="$1"
   local platform="$2"
+  local state_file
 
-  case "$platform" in
-    claude) printf '%s/state/claude-install-state.json\n' "$repo_root" ;;
-    codex) printf '%s/state/codex-install-state.json\n' "$repo_root" ;;
-    *) ops_fail "unknown platform: $platform" ;;
-  esac
+  layout_bootstrap_local_dirs "$repo_root"
+  state_file="$(layout_install_state_file_for "$repo_root" "$platform")"
+  mkdir -p "$(dirname "$state_file")"
+
+  if [[ ! -f "$state_file" ]]; then
+    ops_default_state_json "$platform" > "$state_file"
+  fi
+
+  printf '%s\n' "$state_file"
 }
 
 ops_install_map_for() {
   local repo_root="$1"
   local platform="$2"
 
-  case "$platform" in
-    claude) printf '%s/platforms/claude/install-map.json\n' "$repo_root" ;;
-    codex) printf '%s/platforms/codex/install-map.json\n' "$repo_root" ;;
-    *) ops_fail "unknown platform: $platform" ;;
-  esac
+  layout_install_map_for "$repo_root" "$platform"
 }
 
 ops_sync_script_for() {
@@ -84,23 +101,26 @@ ops_compute_component_digests() {
   local profile="$3"
   local target_root="$4"
   local repo_root
-  local profiles_json="$repo_root/install/profiles.json"
-  local modules_json="$repo_root/install/modules.json"
-  local components_json="$repo_root/install/components.json"
+  local install_dir
+  local profiles_json
+  local modules_json
+  local components_json
   local install_map_json
   local work_dir
   local modules_file
   local components_file
   local allowed_paths_file
   local component_paths_file
+  local action_file
   local seen_targets_file
   local component_targets_file
   local resolved_target_root
 
   repo_root="$(realpath "$repo_root_input")"
-  profiles_json="$repo_root/install/profiles.json"
-  modules_json="$repo_root/install/modules.json"
-  components_json="$repo_root/install/components.json"
+  install_dir="$(layout_install_dir "$repo_root")"
+  profiles_json="$install_dir/profiles.json"
+  modules_json="$install_dir/modules.json"
+  components_json="$install_dir/components.json"
   install_map_json="$(ops_install_map_for "$repo_root" "$platform")"
   resolved_target_root="$(ops_validate_installed_target_root "$repo_root" "$target_root")"
 
@@ -111,12 +131,13 @@ ops_compute_component_digests() {
   components_file="$work_dir/components.txt"
   allowed_paths_file="$work_dir/allowed-paths.txt"
   component_paths_file="$work_dir/component-paths.tsv"
+  action_file="$work_dir/actions.jsonl"
   seen_targets_file="$work_dir/seen-targets.txt"
   component_targets_file="$work_dir/component-targets.tsv"
 
   sync_resolve_profile_modules "$profiles_json" "$modules_json" "$profile" "$modules_file"
   sync_resolve_module_components "$modules_json" "$modules_file" "$components_file"
   sync_resolve_component_paths "$components_json" "$components_file" "$allowed_paths_file" "$component_paths_file"
-  sync_collect_component_targets "$repo_root" "$install_map_json" "$allowed_paths_file" "$component_paths_file" "$component_targets_file" "$seen_targets_file"
+  sync_collect_mapping_actions "$repo_root" "$install_map_json" "$allowed_paths_file" "$component_paths_file" "$action_file" "$component_targets_file" "$seen_targets_file"
   sync_compute_component_digests_from_targets "$resolved_target_root" "$component_targets_file"
 }

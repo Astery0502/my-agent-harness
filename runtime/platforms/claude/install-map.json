@@ -3,32 +3,30 @@
   "targetRoot": "~/.claude",
   "mappings": [
     {
-      "source": "AGENTS.md",
-      "target": "AGENTS.md",
-      "mode": "shared-base"
+      "sources": [
+        "runtime/HARNESS.md",
+        "runtime/platforms/claude/CLAUDE.base.md"
+      ],
+      "target": "CLAUDE.md",
+      "mode": "concat"
     },
     {
-      "source": "platforms/claude/CLAUDE.base.md",
-      "target": "CLAUDE.base.md",
-      "mode": "platform-base"
-    },
-    {
-      "source": "agents",
+      "source": "runtime/agents",
       "target": "agents",
       "mode": "directory"
     },
     {
-      "source": "skills",
+      "source": "runtime/skills",
       "target": "skills",
       "mode": "directory"
     },
     {
-      "source": "commands",
+      "source": "runtime/commands",
       "target": "commands",
       "mode": "directory"
     },
     {
-      "source": "rules",
+      "source": "runtime/rules",
       "target": "rules",
       "mode": "directory"
     }

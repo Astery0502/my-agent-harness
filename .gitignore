@@ -1,1 +1,3 @@
 .worktrees/
+.local/
+.DS_Store

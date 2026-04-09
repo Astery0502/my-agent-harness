@@ -3,42 +3,40 @@
   "targetRoot": "~/.codex",
   "mappings": [
     {
-      "source": "AGENTS.md",
+      "sources": [
+        "runtime/HARNESS.md",
+        "runtime/platforms/codex/AGENTS.supplement.md"
+      ],
       "target": "AGENTS.md",
-      "mode": "shared-base"
+      "mode": "concat"
     },
     {
-      "source": "platforms/codex/AGENTS.supplement.md",
-      "target": "AGENTS.supplement.md",
-      "mode": "platform-supplement"
-    },
-    {
-      "source": "platforms/codex/config.base.toml",
+      "source": "runtime/platforms/codex/config.base.toml",
       "target": "config.toml",
       "mode": "platform-base"
     },
     {
-      "source": "platforms/codex/agents",
+      "source": "runtime/platforms/codex/agents",
       "target": "agents",
       "mode": "directory"
     },
     {
-      "source": "agents",
-      "target": "shared/agents",
+      "source": "runtime/agents",
+      "target": "shared-agents",
       "mode": "directory"
     },
     {
-      "source": "skills",
+      "source": "runtime/skills",
       "target": "skills",
       "mode": "directory"
     },
     {
-      "source": "commands",
-      "target": "commands",
+      "source": "runtime/commands",
+      "target": "prompts",
       "mode": "directory"
     },
     {
-      "source": "rules",
+      "source": "runtime/rules",
       "target": "rules",
       "mode": "directory"
     }

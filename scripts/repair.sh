@@ -16,7 +16,7 @@ Repair local staged harness installs by rerunning sync with recorded profiles.
 Current behavior:
 - for installed platforms, rerun the matching local staging sync
 - for not-installed platforms, report that nothing needs repair
-- never write outside the repository
+- write only inside .local/ and never outside the repository
 EOF
 }
 

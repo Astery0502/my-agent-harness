@@ -30,16 +30,22 @@ Not included yet:
 my-agent-harness/
 ├── AGENTS.md
 ├── README.md
-├── agents/
-├── commands/
-├── docs/
-├── install/
-├── platforms/
-├── rules/
+├── runtime/
+├── ops/
 ├── scripts/
-├── skills/
-└── state/
+├── docs/
+├── tests/
+└── .local/                # ignored generated output
 ```
+
+## Lookup Guide
+
+- `AGENTS.md`: project-local guidance for changing this repo
+- `runtime/`: installable shared/runtime source, including `runtime/HARNESS.md`
+- `ops/`: tracked install metadata and schemas
+- `scripts/`: stable shell entrypoints
+- `docs/README.md`: index to active architecture, reference docs, decisions, and archive
+- `.local/`: ignored install-state and staged runtime output
 
 ## Runtime Targets
 
@@ -48,26 +54,28 @@ This repo is intended to sync into:
 - `~/.claude/`
 - `~/.codex/`
 
-The shared source files live in this repository. Platform folders define how shared content maps into each runtime target.
+`AGENTS.md` is for this repository as a project. `runtime/HARNESS.md` is the
+shared installable runtime baseline. `runtime/platforms/` defines how shared
+content maps into each runtime target.
 
 ## Install Model
 
 The install model is intentionally explicit:
 
-1. source content is authored in this repo
-2. install metadata declares what can be synced
-3. platform install maps define where content lands
-4. state files record what was installed and when
+1. runtime source content is authored in `runtime/`
+2. install metadata in `ops/install/` declares what can be synced
+3. platform install maps in `runtime/platforms/` define where content lands
+4. local install-state files in `.local/install-state/` record what was installed and when
 5. doctor and repair scripts check for drift later
 
 ## Current Sync Workflow
 
 The real sync path currently stages output locally instead of writing into home-directory runtime targets.
 
-- `./scripts/sync-claude.sh` stages Claude output into `state/staging/claude/`
-- `./scripts/sync-codex.sh` stages Codex output into `state/staging/codex/`
+- `./scripts/sync-claude.sh` stages Claude output into `.local/staging/claude/`
+- `./scripts/sync-codex.sh` stages Codex output into `.local/staging/codex/`
 - both scripts accept an optional `--profile <id>` argument
-- each successful run updates the matching file in `state/`
+- each successful run updates the matching file in `.local/install-state/`
 
 This milestone is intentionally staging-first so the install logic can be exercised safely before adding writes into `~/.claude/` or `~/.codex/`.
 

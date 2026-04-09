@@ -14,15 +14,15 @@ Usage: ./scripts/sync-codex.sh [--help] [--profile <id>]
 Stage harness content for Codex into a local staging directory.
 
 Current behavior:
-- read install/profiles.json and install/modules.json
-- read platforms/codex/install-map.json
-- stage mapped files into state/staging/codex/
-- update state/codex-install-state.json
+- read ops/install/profiles.json and ops/install/modules.json
+- read runtime/platforms/codex/install-map.json
+- stage mapped files into .local/staging/codex/
+- update .local/install-state/codex.json
 - never write into ~/.codex in this milestone
 EOF
 }
 
-PROFILE="minimal"
+PROFILE="codex-only"
 
 while (($# > 0)); do
   case "$1" in
@@ -51,7 +51,4 @@ fi
 sync_run \
   "$REPO_ROOT" \
   "codex" \
-  "$PROFILE" \
-  "platforms/codex/install-map.json" \
-  "state/codex-install-state.json" \
-  "state/staging/codex"
+  "$PROFILE"

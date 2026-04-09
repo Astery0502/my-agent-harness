@@ -1,9 +1,0 @@
-{
-  "platform": "claude",
-  "installedAt": null,
-  "profile": "minimal",
-  "modules": [],
-  "componentDigests": {},
-  "targetRoot": "~/.claude",
-  "status": "not-installed"
-}

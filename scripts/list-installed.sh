@@ -14,8 +14,8 @@ Usage: ./scripts/list-installed.sh [--help]
 List current local harness install state for Claude and Codex.
 
 Current behavior:
-- read state/claude-install-state.json
-- read state/codex-install-state.json
+- read .local/install-state/claude.json
+- read .local/install-state/codex.json
 - print platform, status, profile, modules, target root, and installed timestamp
 EOF
 }
@@ -36,10 +36,10 @@ esac
 for platform in $(ops_platforms); do
   state_file="$(ops_state_file_for "$REPO_ROOT" "$platform")"
   status="$(ops_state_get_raw "$state_file" '.status')"
-  profile="$(ops_state_get_raw "$state_file" '.profile')"
+  profile="$(ops_state_get_raw "$state_file" 'if .profile == "" then "(none)" else .profile end')"
   modules="$(ops_state_get_modules_text "$state_file")"
-  target_root="$(ops_state_get_raw "$state_file" '.targetRoot')"
-  installed_at="$(ops_state_get_raw "$state_file" '.installedAt // "(never)"')"
+  target_root="$(ops_state_get_raw "$state_file" 'if .targetRoot == "" then "(none)" else .targetRoot end')"
+  installed_at="$(ops_state_get_raw "$state_file" '(.installedAt // "(never)") | if . == "" then "(never)" else . end')"
 
   printf '%s\n' "platform: $platform"
   printf '%s\n' "status: $status"
