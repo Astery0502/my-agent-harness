@@ -1,3 +1,8 @@
+---
+name: tdd-workflow
+description: Baseline front-half planning skill for clearer prompts that move quickly into examples, edge cases, and a shared constraint packet handoff.
+---
+
 # TDD Workflow
 
 ## Purpose

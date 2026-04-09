@@ -1,3 +1,2 @@
 name = "explorer"
-role = "read-only codebase and context exploration"
-status = "placeholder"
+description = "Inactive placeholder agent role reserved for future Codex-specific explorer wiring."

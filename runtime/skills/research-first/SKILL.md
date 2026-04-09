@@ -1,8 +1,13 @@
+---
+name: research-first
+description: Inactive placeholder skill reserved for future context-gathering workflows before implementation.
+---
+
 # Research First
 
 ## Description
 
-Placeholder skill for gathering context before implementation.
+Inactive placeholder skill for gathering context before implementation.
 
 ## Inputs
 

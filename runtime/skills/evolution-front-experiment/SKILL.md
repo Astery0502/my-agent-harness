@@ -1,3 +1,8 @@
+---
+name: evolution-front-experiment
+description: Opt-in experimental skill for weak prompts that need an evidence-chain-oriented front half before the shared downstream implementation tail.
+---
+
 # Evolution Front Experiment
 
 ## Status
