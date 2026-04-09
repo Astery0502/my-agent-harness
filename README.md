@@ -89,6 +89,16 @@ The harness now has a local operations layer around staged installs:
 
 These scripts operate only on local repository state in this milestone. They do not modify `~/.claude` or `~/.codex`.
 
+## Evolution-Front Experiment
+
+The repo also contains an opt-in workflow experiment for weak prompts.
+
+- baseline `/plan` remains the default path
+- challenger `/evolution-plan` uses an evidence-chain-oriented front half before the same downstream tail
+- the experiment is still evidence-driven and not promoted into shared policy
+
+See [docs/evolution-front-experiment.md](/Users/astery/src/ai/my-agent-harness/docs/evolution-front-experiment.md) for the current method, completed trial matrix, and recommendation.
+
 ## Guiding Principle
 
 Use ECC as a reference library of ideas, not as a dependency to mirror wholesale. Every adopted pattern should be understandable and maintainable here.
