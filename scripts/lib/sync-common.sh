@@ -7,6 +7,8 @@ SYNC_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=./layout-common.sh
 source "$SYNC_LIB_DIR/layout-common.sh"
+# shellcheck source=./external-common.sh
+source "$SYNC_LIB_DIR/external-common.sh"
 
 sync_fail() {
   echo "sync error: $*" >&2
@@ -292,6 +294,7 @@ sync_build() {
           mkdir -p "$dest"
           if find "$resolved_src" -mindepth 1 -print -quit | grep -q .; then
             cp -R "$resolved_src"/. "$dest"/
+            rm -rf "$dest/.git"
           fi
         else
           sync_fail "unsupported source type: $src_path"
@@ -610,8 +613,11 @@ sync_run() {
   repo_root="$(realpath "$repo_root_input")"
   layout_bootstrap_local_dirs "$repo_root"
 
+  externals_fetch_all "$repo_root"
+
   local actions
   actions="$(sync_resolve "$repo_root" "$platform" "$profile")"
+  actions="$(externals_inject_actions "$actions" "$repo_root")"
 
   local work_dir
   work_dir="$(mktemp -d)"

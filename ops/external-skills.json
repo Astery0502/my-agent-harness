@@ -1,0 +1,8 @@
+[
+  {
+    "name": "skill-creator",
+    "url": "https://github.com/anthropics/skills",
+    "ref": "main",
+    "sub_path": "skills/skill-creator"
+  }
+]

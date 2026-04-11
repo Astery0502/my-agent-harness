@@ -78,11 +78,28 @@ layout_backup_root_for() {
   printf '%s/%s/%s\n' "$(layout_backups_dir "$repo_root")" "$platform" "$timestamp"
 }
 
+layout_external_registry_file() {
+  local repo_root="$1"
+  printf '%s/ops/external-skills.json\n' "$repo_root"
+}
+
+layout_external_dir() {
+  local repo_root="$1"
+  printf '%s/.local/external\n' "$repo_root"
+}
+
+layout_external_skill_dir() {
+  local repo_root="$1"
+  local name="$2"
+  printf '%s/%s\n' "$(layout_external_dir "$repo_root")" "$name"
+}
+
 layout_bootstrap_local_dirs() {
   local repo_root="$1"
   mkdir -p \
     "$(layout_install_state_target_dir "$repo_root" "live")" \
     "$(layout_install_state_target_dir "$repo_root" "staging")" \
     "$(layout_staging_dir "$repo_root")" \
-    "$(layout_backups_dir "$repo_root")"
+    "$(layout_backups_dir "$repo_root")" \
+    "$(layout_external_dir "$repo_root")"
 }
