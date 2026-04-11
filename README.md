@@ -4,26 +4,6 @@
 
 It borrows useful patterns from ECC, but it does not depend on ECC as a base layer. This repo is the source of truth.
 
-## First Milestone
-
-This first milestone is foundation only.
-
-Included:
-
-- repo structure
-- shared philosophy
-- platform split
-- install metadata
-- install-state scaffolding
-- sync, doctor, and repair script stubs
-
-Not included yet:
-
-- mature workflow content
-- hooks and automation
-- project starter templates
-- deep platform integration
-
 ## Repository Shape
 
 ```text
@@ -33,8 +13,8 @@ my-agent-harness/
 ├── runtime/
 ├── ops/
 ├── scripts/
-├── docs/
 ├── tests/
+├── docs/
 └── .local/                # ignored generated output
 ```
 
@@ -42,8 +22,10 @@ my-agent-harness/
 
 - `AGENTS.md`: project-local guidance for changing this repo
 - `runtime/`: installable shared/runtime source, including `runtime/HARNESS.md`
-- `ops/`: tracked install metadata and schemas
+- `ops/manifest.json`: component and profile definitions
+- `runtime/platforms/*/install-map.json`: per-platform source-to-target mappings
 - `scripts/`: stable shell entrypoints
+- `tests/`: integration tests for the sync and ops pipeline
 - `docs/README.md`: index to active architecture, reference docs, decisions, and archive
 - `.local/`: ignored install-state and staged runtime output
 
@@ -63,31 +45,78 @@ content maps into each runtime target.
 The install model is intentionally explicit:
 
 1. runtime source content is authored in `runtime/`
-2. install metadata in `ops/install/` declares what can be synced
-3. platform install maps in `runtime/platforms/` define where content lands
-4. local install-state files in `.local/install-state/` record what was installed and when
-5. doctor and repair scripts check for drift later
+2. `ops/manifest.json` declares components and profiles
+3. platform install maps in `runtime/platforms/*/install-map.json` define where content lands, tagged by component
+4. `scripts/sync.sh` resolves the profile, builds a target tree, and deploys it
+5. target-scoped install-state files in `.local/install-state/` record what was installed and when
+6. doctor and repair scripts check for drift on the selected target
 
-## Current Sync Workflow
+## Sync Workflow
 
-The real sync path currently stages output locally instead of writing into home-directory runtime targets.
+A single sync script handles all platforms. It defaults to the live runtime root and keeps staging as an explicit test target.
 
-- `./scripts/sync-claude.sh` stages Claude output into `.local/staging/claude/`
-- `./scripts/sync-codex.sh` stages Codex output into `.local/staging/codex/`
-- both scripts accept an optional `--profile <id>` argument
-- each successful run updates the matching file in `.local/install-state/`
+```bash
+# install claude runtime (uses default profile from install-map)
+./scripts/sync.sh --platform claude
 
-This milestone is intentionally staging-first so the install logic can be exercised safely before adding writes into `~/.claude/` or `~/.codex/`.
+# install codex runtime with explicit profile
+./scripts/sync.sh --platform codex --profile codex-only
+
+# install to staging for testing
+./scripts/sync.sh --platform claude --target staging
+
+# preview what would change without modifying anything
+./scripts/sync.sh --platform claude --dry-run
+```
+
+Options:
+
+- `--platform <name>` (required): platform to sync, auto-discovered from `runtime/platforms/*/install-map.json`
+- `--profile <id>` (optional): profile from `ops/manifest.json`, defaults to the install-map's `defaultProfile`
+- `--target live|staging` (optional): defaults to `live`
+- `--dry-run` (optional): show what would be installed without making changes
+
+Sync prints a human-readable summary on success, including the active target, target root, applied target count, and backup location when backups were created.
 
 ## Local Ops Workflow
 
-The harness now has a local operations layer around staged installs:
+The harness has a local operations layer around live and staging installs:
 
-- `./scripts/list-installed.sh` shows the current recorded state for Claude and Codex
-- `./scripts/doctor.sh` checks whether staged output still matches the recorded digests
-- `./scripts/repair.sh` rebuilds staged output by rerunning sync with the recorded profile
+```bash
+# show install state for all discovered platforms
+./scripts/list-installed.sh
 
-These scripts operate only on local repository state in this milestone. They do not modify `~/.claude` or `~/.codex`.
+# check whether deployed files match recorded digests
+./scripts/doctor.sh
+
+# repair by rerunning sync with recorded profiles
+./scripts/repair.sh
+```
+
+All three scripts default to `--target live` and also support `--target staging`.
+
+## Running Tests
+
+Tests run in isolated temp directories and never touch your live environment.
+
+```bash
+# run all tests
+for t in tests/ops/test-sync-*.sh; do echo "--- $t ---"; bash "$t"; done
+
+# run a specific test
+bash tests/ops/test-sync-lifecycle.sh
+```
+
+Test suites:
+
+| Test | What it covers |
+|---|---|
+| `test-sync-errors.sh` | Bad platforms, bad profiles, missing components, path validation, duplicate targets |
+| `test-sync-dry-run.sh` | Dry-run produces output without side effects |
+| `test-sync-lifecycle.sh` | Full live+staging cycle: sync, doctor, drift, repair, backup, state validation |
+| `test-sync-content.sh` | File existence, content correctness, no leaked source paths, evolution-front experiment content |
+
+Each test prints `PASS: <name>` on success or `FAIL: <reason>` on failure. A nonzero exit code means failure.
 
 ## Evolution-Front Experiment
 
@@ -97,7 +126,7 @@ The repo also contains an opt-in workflow experiment for weak prompts.
 - challenger `/evolution-plan` uses an evidence-chain-oriented front half before the same downstream tail
 - the experiment is still evidence-driven and not promoted into shared policy
 
-See [docs/evolution-front-experiment.md](/Users/astery/src/ai/my-agent-harness/docs/evolution-front-experiment.md) for the current method, completed trial matrix, and recommendation.
+See [docs/evolution-front-experiment.md](docs/evolution-front-experiment.md) for the current method, completed trial matrix, and recommendation.
 
 ## Guiding Principle
 

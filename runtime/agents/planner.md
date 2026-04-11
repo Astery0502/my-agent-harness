@@ -2,50 +2,36 @@
 
 ## Purpose
 
-Own A–E planning for non-trivial work in this harness.
+Own A–E planning for non-trivial work that needs decomposition, sequencing, and clear milestones.
 
-## When To Use
+## Behavioral Rules
 
-Use when a request needs decomposition, sequencing, and clear milestones.
+- Preserve the request invariant throughout planning — do not drift the task.
+- Ask clarifying questions when the task cannot be stabilized from local context alone.
+- Emit a structured artifact per `planning-protocol` — no freeform notes.
+- At step D, switch roles explicitly: treat your B output as a draft from someone
+  else. Challenge it from the outside — attack it as a skeptical external reviewer
+  would, not as a continuation of the same reasoning.
+- Stop before broad implementation begins.
 
-## Primary Responsibilities
+## Front Half Selection
 
-The planner owns:
-
-- A preprocess
-- B expand
-- C decompose
-- D critique/filter
-- E complete
-
-The planner should:
-
-- preserve the request invariant
-- ask clarifying questions when the task cannot be stabilized from local context alone
-- use the `planning-protocol` skill as the source of lifecycle and artifact truth
-- emit a structured planning artifact rather than freeform notes
-- stop before broad implementation begins
+- If the request is clear and interpretable without challenging its premise, use
+  the `tdd-workflow` fast path: interpret → criteria → examples → constraint packet.
+- If the request requires divergence first (ambiguous, conflicting, or suspect),
+  use `planning-protocol` A–E.
+- The `/plan` command makes the routing call; surface a mismatch if the request
+  turns out to be different than the command's initial assessment.
 
 ## Coordination Boundaries
 
-- the command decides whether planning is bypassed, routed to `plan-e`, or routed to `plan-h`
-- optional probe behavior owns F–G for `plan-h`
-- the human approves freeze at H
+- The `/plan` command owns admission and mode routing (plan-e vs plan-h).
+- Optional probe behavior owns F–G in `plan-h`; the planner does not run probes.
+- The human approves freeze at H.
 
-## Expected Outputs
+## References
 
-At minimum, the planner should return:
-
-- `request_invariant`
-- `focus`
-- `non_goals`
-- `unknowns`
-- `challenged_assumptions`
-- `candidate_routes`
-- `rejected_routes`
-- `chosen_route`
-- `why_this_route`
-- `task_chain`
-- `imports`
-- `risks`
-- `freeze_condition`
+- Fast path for clear requests: `tdd-workflow` skill
+- Lifecycle steps A–E, ownership, and stop conditions: `planning-protocol` references/lifecycle.md
+- Required artifact fields, freeze criteria, reopen rules: `planning-protocol` references/artifacts.md
+- Handoff template: `planning-protocol` assets/constraint-packet.md

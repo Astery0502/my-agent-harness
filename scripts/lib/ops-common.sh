@@ -13,21 +13,17 @@ ops_fail() {
   exit 1
 }
 
-ops_platforms() {
-  printf 'claude\ncodex\n'
-}
-
 ops_default_state_json() {
   local platform="$1"
-
   jq -n \
     --arg platform "$platform" \
     '{
       platform: $platform,
       installedAt: null,
       profile: "",
-      modules: [],
+      components: [],
       componentDigests: {},
+      componentTargets: {},
       targetRoot: "",
       status: "not-installed"
     }'
@@ -36,10 +32,11 @@ ops_default_state_json() {
 ops_state_file_for() {
   local repo_root="$1"
   local platform="$2"
+  local target="$3"
   local state_file
 
   layout_bootstrap_local_dirs "$repo_root"
-  state_file="$(layout_install_state_file_for "$repo_root" "$platform")"
+  state_file="$(layout_install_state_file_for "$repo_root" "$platform" "$target")"
   mkdir -p "$(dirname "$state_file")"
 
   if [[ ! -f "$state_file" ]]; then
@@ -49,95 +46,46 @@ ops_state_file_for() {
   printf '%s\n' "$state_file"
 }
 
-ops_install_map_for() {
-  local repo_root="$1"
-  local platform="$2"
-
-  layout_install_map_for "$repo_root" "$platform"
-}
-
-ops_sync_script_for() {
-  local repo_root="$1"
-  local platform="$2"
-
-  case "$platform" in
-    claude) printf '%s/scripts/sync-claude.sh\n' "$repo_root" ;;
-    codex) printf '%s/scripts/sync-codex.sh\n' "$repo_root" ;;
-    *) ops_fail "unknown platform: $platform" ;;
-  esac
-}
-
 ops_state_get_raw() {
   local state_file="$1"
   local expr="$2"
   jq -r "$expr" "$state_file"
 }
 
-ops_state_get_modules_text() {
+ops_state_get_components_text() {
   local state_file="$1"
-  jq -r '.modules | if length == 0 then "(none)" else join(", ") end' "$state_file"
+  jq -r '.components | if length == 0 then "(none)" else join(", ") end' "$state_file"
 }
 
 ops_validate_installed_target_root() {
   local repo_root_input="$1"
   local target_root="$2"
+  local platform="$3"
+  local target="$4"
   local repo_root
   local resolved_root
+  local expected_root
 
   repo_root="$(realpath "$repo_root_input")"
 
   [[ -n "$target_root" ]] || ops_fail "empty target root"
-  [[ "$target_root" != "~/"* ]] || ops_fail "unsafe target root points outside repository: $target_root"
   [[ -e "$target_root" ]] || ops_fail "installed target root does not exist: $target_root"
 
   resolved_root="$(realpath "$target_root")"
-  sync_ensure_inside_repo "$repo_root" "$target_root" "$resolved_root"
+
+  case "$target" in
+    staging)
+      sync_ensure_inside_repo "$repo_root" "$target_root" "$resolved_root"
+      ;;
+    live)
+      expected_root="$(sync_target_root_for "$repo_root" "$platform" "$target")"
+      [[ "$resolved_root" == "$expected_root" ]] || ops_fail "installed target root does not match live root: $target_root"
+      ;;
+    *)
+      ops_fail "unknown target: $target"
+      ;;
+  esac
+
   printf '%s\n' "$resolved_root"
 }
 
-ops_compute_component_digests() {
-  local repo_root_input="$1"
-  local platform="$2"
-  local profile="$3"
-  local target_root="$4"
-  local repo_root
-  local install_dir
-  local profiles_json
-  local modules_json
-  local components_json
-  local install_map_json
-  local work_dir
-  local modules_file
-  local components_file
-  local allowed_paths_file
-  local component_paths_file
-  local action_file
-  local seen_targets_file
-  local component_targets_file
-  local resolved_target_root
-
-  repo_root="$(realpath "$repo_root_input")"
-  install_dir="$(layout_install_dir "$repo_root")"
-  profiles_json="$install_dir/profiles.json"
-  modules_json="$install_dir/modules.json"
-  components_json="$install_dir/components.json"
-  install_map_json="$(ops_install_map_for "$repo_root" "$platform")"
-  resolved_target_root="$(ops_validate_installed_target_root "$repo_root" "$target_root")"
-
-  work_dir="$(mktemp -d)"
-  trap 'rm -rf "$work_dir"' RETURN
-
-  modules_file="$work_dir/modules.txt"
-  components_file="$work_dir/components.txt"
-  allowed_paths_file="$work_dir/allowed-paths.txt"
-  component_paths_file="$work_dir/component-paths.tsv"
-  action_file="$work_dir/actions.jsonl"
-  seen_targets_file="$work_dir/seen-targets.txt"
-  component_targets_file="$work_dir/component-targets.tsv"
-
-  sync_resolve_profile_modules "$profiles_json" "$modules_json" "$profile" "$modules_file"
-  sync_resolve_module_components "$modules_json" "$modules_file" "$components_file"
-  sync_resolve_component_paths "$components_json" "$components_file" "$allowed_paths_file" "$component_paths_file"
-  sync_collect_mapping_actions "$repo_root" "$install_map_json" "$allowed_paths_file" "$component_paths_file" "$action_file" "$component_targets_file" "$seen_targets_file"
-  sync_compute_component_digests_from_targets "$resolved_target_root" "$component_targets_file"
-}

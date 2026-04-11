@@ -6,6 +6,6 @@ Entry point for structured review before completion.
 
 ## Intended Coordination
 
-- dispatch to `runtime/agents/reviewer.md`
+- dispatch to the reviewer agent
 - consult verification or domain-specific skills
-- enforce readiness expectations from `runtime/rules/`
+- enforce readiness expectations from the active rules

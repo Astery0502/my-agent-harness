@@ -9,32 +9,36 @@ source "$SCRIPT_DIR/lib/ops-common.sh"
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/repair.sh [--help]
+Usage: ./scripts/repair.sh [--help] [--target <live|staging>]
 
-Repair local staged harness installs by rerunning sync with recorded profiles.
-
-Current behavior:
-- for installed platforms, rerun the matching local staging sync
-- for not-installed platforms, report that nothing needs repair
-- write only inside .local/ and never outside the repository
+Repair harness installs by rerunning sync with recorded profiles.
 EOF
 }
 
-case "${1:-}" in
-  --help|-h)
-    usage
-    exit 0
-    ;;
-  "")
-    ;;
-  *)
-    echo "repair.sh: unsupported argument: $1" >&2
-    exit 1
-    ;;
-esac
+TARGET="live"
 
-for platform in $(ops_platforms); do
-  state_file="$(ops_state_file_for "$REPO_ROOT" "$platform")"
+while (($# > 0)); do
+  case "$1" in
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --target)
+      shift
+      [[ $# -gt 0 ]] || ops_fail "--target requires a value"
+      TARGET="$1"
+      sync_validate_target "$TARGET" || ops_fail "unsupported target: $TARGET"
+      ;;
+    *)
+      echo "repair.sh: unsupported argument: $1" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+while IFS= read -r platform; do
+  state_file="$(ops_state_file_for "$REPO_ROOT" "$platform" "$TARGET")"
   status="$(ops_state_get_raw "$state_file" '.status')"
   profile="$(ops_state_get_raw "$state_file" '.profile')"
   target_root="$(ops_state_get_raw "$state_file" '.targetRoot')"
@@ -44,13 +48,12 @@ for platform in $(ops_platforms); do
       printf '%s\n' "$platform: nothing to repair"
       ;;
     installed)
-      ops_validate_installed_target_root "$REPO_ROOT" "$target_root" >/dev/null
-      sync_script="$(ops_sync_script_for "$REPO_ROOT" "$platform")"
-      "$sync_script" --profile "$profile" >/dev/null
+      ops_validate_installed_target_root "$REPO_ROOT" "$target_root" "$platform" "$TARGET" >/dev/null
+      "$SCRIPT_DIR/sync.sh" --platform "$platform" --profile "$profile" --target "$TARGET" >/dev/null
       printf '%s\n' "$platform: repaired"
       ;;
     *)
       ops_fail "cannot repair malformed state for $platform"
       ;;
   esac
-done
+done < <(layout_discover_platforms "$REPO_ROOT")

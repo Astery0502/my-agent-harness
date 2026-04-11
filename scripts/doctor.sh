@@ -9,52 +9,61 @@ source "$SCRIPT_DIR/lib/ops-common.sh"
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/doctor.sh [--help]
+Usage: ./scripts/doctor.sh [--help] [--target <live|staging>]
 
-Diagnose local staged harness installs and recorded state.
+Diagnose harness installs for the selected target.
 
-Current behavior:
-- validate install metadata consistency
-- compare .local staged files against recorded component digests
-- report healthy, not-installed, drifted, or malformed state
+Reads stored state (componentDigests + componentTargets) and re-hashes
+the deployed paths to detect drift. No manifest or install-map resolution needed.
 EOF
 }
 
-case "${1:-}" in
-  --help|-h)
-    usage
-    exit 0
-    ;;
-  "")
-    ;;
-  *)
-    echo "doctor.sh: unsupported argument: $1" >&2
-    exit 1
-    ;;
-esac
+TARGET="live"
+
+while (($# > 0)); do
+  case "$1" in
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --target)
+      shift
+      [[ $# -gt 0 ]] || ops_fail "--target requires a value"
+      TARGET="$1"
+      sync_validate_target "$TARGET" || ops_fail "unsupported target: $TARGET"
+      ;;
+    *)
+      echo "doctor.sh: unsupported argument: $1" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
 
 exit_code=0
+err_file="$(mktemp)"
+trap 'rm -f "$err_file"' EXIT
 
-for platform in $(ops_platforms); do
-  state_file="$(ops_state_file_for "$REPO_ROOT" "$platform")"
-  status="$(ops_state_get_raw "$state_file" '.status')"
-  profile="$(ops_state_get_raw "$state_file" '.profile')"
-  target_root="$(ops_state_get_raw "$state_file" '.targetRoot')"
-  recorded_digests="$(jq -c '.componentDigests' "$state_file")"
+while IFS= read -r platform; do
+  state_file="$(ops_state_file_for "$REPO_ROOT" "$platform" "$TARGET")"
+  IFS=$'\t' read -r status target_root < <(jq -r '[.status, .targetRoot] | @tsv' "$state_file")
 
   case "$status" in
     not-installed)
       printf '%s\n' "$platform: not-installed"
       ;;
     installed)
-      if ! resolved_target_root="$(ops_validate_installed_target_root "$REPO_ROOT" "$target_root" 2>/tmp/ops-doctor.err)"; then
-        printf '%s\n' "$platform: malformed - $(cat /tmp/ops-doctor.err)"
+      if ! ops_validate_installed_target_root "$REPO_ROOT" "$target_root" "$platform" "$TARGET" >/dev/null 2>"$err_file"; then
+        printf '%s\n' "$platform: malformed - $(cat "$err_file")"
         exit_code=1
         continue
       fi
 
-      actual_digests="$(ops_compute_component_digests "$REPO_ROOT" "$platform" "$profile" "$resolved_target_root")"
-      if [[ "$actual_digests" == "$recorded_digests" ]]; then
+      stored_digests="$(jq -c '.componentDigests' "$state_file")"
+      component_targets="$(jq -c '.componentTargets' "$state_file")"
+      actual_digests="$(sync_compute_actual_digests "$target_root" "$component_targets")"
+
+      if [[ "$actual_digests" == "$stored_digests" ]]; then
         printf '%s\n' "$platform: healthy"
       else
         printf '%s\n' "$platform: drifted"
@@ -66,6 +75,6 @@ for platform in $(ops_platforms); do
       exit_code=1
       ;;
   esac
-done
+done < <(layout_discover_platforms "$REPO_ROOT")
 
 exit "$exit_code"

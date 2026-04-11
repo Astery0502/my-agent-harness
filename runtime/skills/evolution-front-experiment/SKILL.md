@@ -77,10 +77,3 @@ If those conditions are not met, continue clarifying, broadening, or probing ins
 
 After freeze, hand off into the same downstream implementation tail used by the default workflow. The difference is only in the front half and the evidence carried into the handoff.
 
-## Planned Sections
-
-- status
-- operational phases
-- evidence chain record
-- freeze rule
-- shared handoff

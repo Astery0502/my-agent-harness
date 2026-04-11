@@ -1,44 +1,40 @@
 {
   "platform": "codex",
+  "defaultProfile": "codex-only",
   "targetRoot": "~/.codex",
   "mappings": [
     {
       "sources": [
-        "runtime/HARNESS.md",
-        "runtime/platforms/codex/AGENTS.supplement.md"
+        { "component": "shared-root", "path": "runtime/HARNESS.md" },
+        { "component": "codex-platform", "path": "runtime/platforms/codex/AGENTS.supplement.md" }
       ],
       "target": "AGENTS.md",
       "mode": "concat"
     },
     {
+      "component": "codex-platform",
       "source": "runtime/platforms/codex/config.base.toml",
-      "target": "config.toml",
-      "mode": "platform-base"
+      "target": "config.toml"
     },
     {
-      "source": "runtime/platforms/codex/agents",
-      "target": "agents",
-      "mode": "directory"
-    },
-    {
+      "component": "shared-agents",
       "source": "runtime/agents",
-      "target": "shared-agents",
-      "mode": "directory"
+      "target": "shared-agents"
     },
     {
+      "component": "shared-skills",
       "source": "runtime/skills",
-      "target": "skills",
-      "mode": "directory"
+      "target": "skills"
     },
     {
+      "component": "shared-commands",
       "source": "runtime/commands",
-      "target": "prompts",
-      "mode": "directory"
+      "target": "prompts"
     },
     {
+      "component": "shared-rules",
       "source": "runtime/rules",
-      "target": "rules",
-      "mode": "directory"
+      "target": "rules"
     }
   ]
 }

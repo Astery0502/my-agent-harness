@@ -1,34 +1,35 @@
 {
   "platform": "claude",
+  "defaultProfile": "claude-only",
   "targetRoot": "~/.claude",
   "mappings": [
     {
       "sources": [
-        "runtime/HARNESS.md",
-        "runtime/platforms/claude/CLAUDE.base.md"
+        { "component": "shared-root", "path": "runtime/HARNESS.md" },
+        { "component": "claude-platform", "path": "runtime/platforms/claude/CLAUDE.base.md" }
       ],
       "target": "CLAUDE.md",
       "mode": "concat"
     },
     {
+      "component": "shared-agents",
       "source": "runtime/agents",
-      "target": "agents",
-      "mode": "directory"
+      "target": "agents"
     },
     {
+      "component": "shared-skills",
       "source": "runtime/skills",
-      "target": "skills",
-      "mode": "directory"
+      "target": "skills"
     },
     {
+      "component": "shared-commands",
       "source": "runtime/commands",
-      "target": "commands",
-      "mode": "directory"
+      "target": "commands"
     },
     {
+      "component": "shared-rules",
       "source": "runtime/rules",
-      "target": "rules",
-      "mode": "directory"
+      "target": "rules"
     }
   ]
 }

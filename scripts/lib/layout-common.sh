@@ -5,24 +5,24 @@ layout_fail() {
   exit 1
 }
 
-layout_runtime_dir() {
+layout_manifest_file() {
   local repo_root="$1"
-  printf '%s/runtime\n' "$repo_root"
+  printf '%s/ops/manifest.json\n' "$repo_root"
 }
 
-layout_ops_dir() {
+layout_install_map_for() {
   local repo_root="$1"
-  printf '%s/ops\n' "$repo_root"
+  local platform="$2"
+  printf '%s/runtime/platforms/%s/install-map.json\n' "$repo_root" "$platform"
 }
 
-layout_install_dir() {
+layout_discover_platforms() {
   local repo_root="$1"
-  printf '%s/ops/install\n' "$repo_root"
-}
-
-layout_schema_dir() {
-  local repo_root="$1"
-  printf '%s/ops/schema\n' "$repo_root"
+  local map_path
+  for map_path in "$repo_root"/runtime/platforms/*/install-map.json; do
+    [[ -f "$map_path" ]] || continue
+    basename "$(dirname "$map_path")"
+  done | LC_ALL=C sort
 }
 
 layout_local_dir() {
@@ -35,54 +35,54 @@ layout_install_state_dir() {
   printf '%s/.local/install-state\n' "$repo_root"
 }
 
-layout_staging_dir() {
+layout_install_state_target_dir() {
   local repo_root="$1"
-  printf '%s/.local/staging\n' "$repo_root"
+  local target="$2"
+  case "$target" in
+    live|staging)
+      printf '%s/%s\n' "$(layout_install_state_dir "$repo_root")" "$target"
+      ;;
+    *)
+      layout_fail "unknown target for install-state path: $target"
+      ;;
+  esac
 }
 
 layout_install_state_file_for() {
   local repo_root="$1"
   local platform="$2"
+  local target="$3"
+  printf '%s/%s.json\n' "$(layout_install_state_target_dir "$repo_root" "$target")" "$platform"
+}
 
-  case "$platform" in
-    claude|codex)
-      printf '%s/%s.json\n' "$(layout_install_state_dir "$repo_root")" "$platform"
-      ;;
-    *)
-      layout_fail "unknown platform for install-state path: $platform"
-      ;;
-  esac
+layout_staging_dir() {
+  local repo_root="$1"
+  printf '%s/.local/staging\n' "$repo_root"
 }
 
 layout_staging_root_for() {
   local repo_root="$1"
   local platform="$2"
-
-  case "$platform" in
-    claude|codex)
-      printf '%s/%s\n' "$(layout_staging_dir "$repo_root")" "$platform"
-      ;;
-    *)
-      layout_fail "unknown platform for staging path: $platform"
-      ;;
-  esac
+  printf '%s/%s\n' "$(layout_staging_dir "$repo_root")" "$platform"
 }
 
-layout_install_map_for() {
+layout_backups_dir() {
+  local repo_root="$1"
+  printf '%s/.local/backups\n' "$repo_root"
+}
+
+layout_backup_root_for() {
   local repo_root="$1"
   local platform="$2"
-
-  case "$platform" in
-    claude|codex)
-      printf '%s/runtime/platforms/%s/install-map.json\n' "$repo_root" "$platform"
-      ;;
-    *)
-      layout_fail "unknown platform for install-map path: $platform"
-      ;;
-  esac
+  local timestamp="$3"
+  printf '%s/%s/%s\n' "$(layout_backups_dir "$repo_root")" "$platform" "$timestamp"
 }
 
 layout_bootstrap_local_dirs() {
   local repo_root="$1"
-  mkdir -p "$(layout_install_state_dir "$repo_root")" "$(layout_staging_dir "$repo_root")"
+  mkdir -p \
+    "$(layout_install_state_target_dir "$repo_root" "live")" \
+    "$(layout_install_state_target_dir "$repo_root" "staging")" \
+    "$(layout_staging_dir "$repo_root")" \
+    "$(layout_backups_dir "$repo_root")"
 }

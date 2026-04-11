@@ -1,0 +1,52 @@
+{
+  "components": {
+    "shared-root": {
+      "paths": ["runtime/HARNESS.md"]
+    },
+    "shared-agents": {
+      "paths": ["runtime/agents"]
+    },
+    "shared-skills": {
+      "paths": ["runtime/skills"]
+    },
+    "shared-commands": {
+      "paths": ["runtime/commands"]
+    },
+    "shared-rules": {
+      "paths": ["runtime/rules"]
+    },
+    "claude-platform": {
+      "paths": ["runtime/platforms/claude"]
+    },
+    "codex-platform": {
+      "paths": ["runtime/platforms/codex"]
+    }
+  },
+  "profiles": {
+    "claude-only": [
+      "shared-root",
+      "shared-agents",
+      "shared-skills",
+      "shared-commands",
+      "shared-rules",
+      "claude-platform"
+    ],
+    "codex-only": [
+      "shared-root",
+      "shared-agents",
+      "shared-skills",
+      "shared-commands",
+      "shared-rules",
+      "codex-platform"
+    ],
+    "full": [
+      "shared-root",
+      "shared-agents",
+      "shared-skills",
+      "shared-commands",
+      "shared-rules",
+      "claude-platform",
+      "codex-platform"
+    ]
+  }
+}

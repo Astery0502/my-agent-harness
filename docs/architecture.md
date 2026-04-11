@@ -40,19 +40,21 @@ This layer answers:
 
 Tracked operational definitions live in:
 
-- `ops/install/`
-- `ops/schema/`
-- `scripts/`
+- `ops/manifest.json` — component and profile definitions
+- `runtime/platforms/*/install-map.json` — per-platform source-to-target mappings
+- `scripts/` — operational entrypoints
 
 Ignored generated local output lives in:
 
-- `.local/install-state/`
+- `.local/install-state/live/`
+- `.local/install-state/staging/`
 - `.local/staging/`
+- `.local/backups/`
 
 This layer answers:
 
-- what can be installed
-- how install state is shaped
+- what components and profiles exist
+- how sources map to per-platform targets
 - how sync, doctor, repair, and listing operate
 - where mutable local output is stored
 
@@ -61,11 +63,26 @@ This layer answers:
 The intended install flow is:
 
 1. author shared and platform content in `runtime/`
-2. describe installable units in `ops/install/`
-3. map repository assets to runtime targets with `runtime/platforms/*/install-map.json`
-4. run sync scripts to install or update runtime files
-5. record results in `.local/install-state/*.json`
-6. use doctor and repair scripts to detect drift and restore consistency
+2. describe components and profiles in `ops/manifest.json`
+3. tag install-map mappings with their component in `runtime/platforms/*/install-map.json`
+4. run `scripts/sync.sh --platform <name>` to install or update runtime files on the selected target
+5. record results in `.local/install-state/<target>/*.json`
+6. keep staging installs available under `.local/staging/`
+7. use doctor and repair scripts to detect drift and restore consistency
+
+## Pipeline
+
+The sync pipeline follows five explicit steps:
+
+```
+resolve(manifest, install-map, profile) -> action list
+build(repo, actions)                    -> build tree
+digest(build tree, actions)             -> component digests
+deploy(build tree, target)              -> report
+record(state file, digests, targets)    -> installed state
+```
+
+Doctor reads stored `componentTargets` and `componentDigests` from the state file and re-hashes the deployed paths. No manifest or install-map resolution is needed for drift detection.
 
 ## Folder Responsibilities
 
@@ -73,14 +90,41 @@ The intended install flow is:
 - `runtime/skills/`: reusable methods and workflows
 - `runtime/commands/`: entrypoints that coordinate workflows
 - `runtime/rules/`: policy and quality expectations
-- `runtime/platforms/`: Claude- and Codex-specific runtime files
-- `ops/install/`: declarative install definitions
-- `ops/schema/`: tracked JSON schema and other static ops contracts
-- `scripts/`: operational entrypoints
-- `.local/`: ignored install status and staged runtime output
+- `runtime/platforms/`: Claude- and Codex-specific runtime files and install maps
+- `ops/manifest.json`: component and profile declarations
+- `scripts/`: operational entrypoints (`sync.sh`, `doctor.sh`, `repair.sh`, `list-installed.sh`)
+- `scripts/lib/`: shared libraries (`layout-common.sh`, `sync-common.sh`, `ops-common.sh`)
+- `tests/lib/`: shared test helpers
+- `tests/ops/`: integration test suites (sync pipeline, workflow structural contracts)
+- `tests/workflow/`: behavioral trial prompts for runtime workflows, one subdirectory per workflow
+- `.local/install-state/`: ignored target-scoped install status
+- `.local/staging/`: ignored staging runtime output
+- `.local/backups/`: ignored backups of overwritten managed live targets
 - `docs/reference/`: evergreen lookup docs
 - `docs/archive/`: historical plans and exploratory notes
 - `docs/decisions/`: local architecture decisions
+
+## Extension Points
+
+Adding a new platform:
+
+1. create `runtime/platforms/<name>/install-map.json` with `platform`, `defaultProfile`, `targetRoot`, and `mappings`
+2. add any platform-specific content under `runtime/platforms/<name>/`
+3. add a component for it in `ops/manifest.json` and reference it from a profile
+4. the platform is auto-discovered by all scripts
+
+Adding a new component:
+
+1. add the component and its paths to `ops/manifest.json`
+2. reference it from one or more profiles
+3. add mappings for it in the relevant install-map files
+
+Adding workflow tests for a new command/skill:
+
+1. create `tests/workflow/<workflow-name>/README.md` — explains the trials and links to the results doc
+2. add one trial file per target behavior: `tests/workflow/<workflow-name>/t<n>-<name>.md`
+3. create `docs/<workflow-name>-trials.md` as the living results record (follow `docs/plan-workflow-trials.md` as template)
+4. add `tests/ops/test-workflow-content.sh` assertions for any new structural contracts the workflow encodes
 
 ## Deferred Work
 

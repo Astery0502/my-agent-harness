@@ -2,6 +2,16 @@
 
 This file defines the artifact schema for `/plan`.
 
+## Constraint Packet as Context Bus
+
+The constraint packet is the lifecycle's shared context bus. It is not assembled
+at the end of planning — it is initiated at step A and updated forward through
+each step. This makes the state of constraints visible at every checkpoint,
+so a failure can be traced to the step where the bad assumption entered the chain.
+
+See `assets/constraint-packet.md` for the canonical template used as the
+terminal handoff artifact.
+
 ## Shared Fields
 
 - `mode`: active planning mode, either `plan-e` or `plan-h`.
@@ -18,6 +28,7 @@ This file defines the artifact schema for `/plan`.
 - `imports`: dependencies, approvals, or external inputs required by the task chain.
 - `risks`: major risks that remain after route selection.
 - `freeze_condition`: the condition under which the reasoning-side plan is stable enough to hand off.
+- `reopen_target`: the specific upstream step (A/B/C/D) to return to when a reopen condition fires. Not "reopen" generically — a named step so the correction is surgical rather than a full restart.
 
 ## `plan-h` Fields
 
@@ -56,5 +67,7 @@ The plan must be reopened when:
 - a critical assumption was unsupported
 - a required dependency was omitted
 - downstream work shows that the frozen task chain relied on a broken upstream link
+
+Implementation failures (failed tests, broken assumptions discovered during coding) are valid reopen triggers. When this happens, the failing evidence becomes the input to the nearest broken upstream step — target the `reopen_target` step rather than restarting from A or patching locally without replanning.
 
 Reopen should target the nearest broken upstream step rather than restarting the full planning chain by default.
