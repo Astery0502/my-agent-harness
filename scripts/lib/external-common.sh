@@ -27,6 +27,18 @@ _externals_url_to_slug() {
     | sed 's|https\?://||; s|\.git$||; s|[^a-zA-Z0-9._-]|-|g; s|^-*||; s|--*|-|g'
 }
 
+# Clone a GitHub URL via the gh CLI into dest. Returns 1 if gh is unavailable,
+# URL is not GitHub, or the clone fails.
+_externals_gh_clone() {
+  local url="$1"
+  local dest="$2"
+  command -v gh >/dev/null 2>&1 || return 1
+  [[ "$url" == *://github.com/* ]] || return 1
+  local repo_path
+  repo_path="$(printf '%s' "$url" | sed 's|.*github\.com/||; s|\.git$||')"
+  gh repo clone "$repo_path" "$dest" -- --quiet 2>/dev/null
+}
+
 # Fetch (clone or pull) one repo by slug (URL-derived cache dir name).
 # Returns 0 and prints a status line; on error warns and returns 1.
 _externals_fetch_one() {
@@ -39,8 +51,10 @@ _externals_fetch_one() {
 
   if [[ ! -d "$skill_dir/.git" ]]; then
     if ! git clone --quiet "$url" "$skill_dir" 2>/dev/null; then
-      externals_warn "failed to clone $slug from $url"
-      return 1
+      if ! _externals_gh_clone "$url" "$skill_dir"; then
+        externals_warn "failed to clone $slug from $url"
+        return 1
+      fi
     fi
     if [[ -n "$ref" ]]; then
       if ! git -C "$skill_dir" checkout --quiet "$ref" 2>/dev/null; then
@@ -57,6 +71,20 @@ _externals_fetch_one() {
   old_head="$(git -C "$skill_dir" rev-parse HEAD 2>/dev/null)" || old_head=""
 
   if ! git -C "$skill_dir" fetch --quiet origin 2>/dev/null; then
+    # gh fallback: re-clone the cache dir (it's disposable)
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "$tmp_dir"' RETURN
+    if _externals_gh_clone "$url" "$tmp_dir"; then
+      rm -rf "$skill_dir"
+      mv "$tmp_dir" "$skill_dir"
+      if [[ -n "$ref" ]]; then
+        git -C "$skill_dir" checkout --quiet "$ref" 2>/dev/null || true
+      fi
+      printf '%s\n' "external: updated: $slug"
+      return 0
+    fi
+    rm -rf "$tmp_dir"
     externals_warn "failed to fetch updates for $slug"
     return 1
   fi
