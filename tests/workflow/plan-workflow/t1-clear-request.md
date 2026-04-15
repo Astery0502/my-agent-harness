@@ -1,9 +1,9 @@
-# Trial T1: Clear Request → tdd-workflow Fast Path
+# Trial T1: Clear Request → planning-protocol A–E
 
 ## Target behavior
 
 When the request is interpretable without challenging its premise, the planner
-should select the `tdd-workflow` fast path and skip the full A–E divergence cycle.
+should still run planning-protocol A–E rather than bypassing step A.
 
 ## Input prompt
 
@@ -17,21 +17,19 @@ Run exactly as written in a Claude Code session where the harness is installed.
 
 ## What to observe
 
-- [ ] The planner signals it is using the tdd-workflow fast path (explicit mention
-      of "tdd-workflow", "fast path", or "clear request" routing)
-- [ ] The planner does NOT run a full A–B–C–D–E expansion cycle before reaching
-      a task chain
-- [ ] Provisional acceptance criteria are shaped early (before examples/edge cases)
+- [ ] The planner signals it is using planning-protocol A–E
+- [ ] Step A still records any unknowns or confirms none need escalation
+- [ ] The planner does run a full A–B–C–D–E chain before reaching a task chain
+- [ ] Provisional acceptance criteria remain testable and concrete by the time the task chain is frozen
 - [ ] The constraint packet is initiated at step A, not assembled at the end
-- [ ] Output reaches a concrete task chain without significant front-half divergence
+- [ ] Output reaches a concrete task chain without unnecessary scope growth
 
 ## Pass condition
 
-The planner selects the fast path and produces a task chain without a full
-A–E divergence cycle. The constraint packet fields populated at A are visible.
+The planner runs A–E even on a clear request, and the constraint packet fields
+populated at A remain visible through the chain.
 
 ## Notes
 
-If the planner runs a full A–E cycle on this prompt, that is the signal to
-examine: either the routing heuristic needs sharper wording, or the request
-is not as clear as assumed.
+If the planner bypasses step A here because the prompt looks obvious, that is a
+failure of the current contract.

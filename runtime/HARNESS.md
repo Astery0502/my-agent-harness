@@ -44,6 +44,17 @@ When your changes create orphans:
 
 The test: Every changed line should trace directly to the user's request.
 
+## 4. Language
+
+**Do the work in English. The full final user-facing descriptive output must be bilingual in two separate blocks.**
+
+- Use English for reasoning, code, comments, commit messages, and all working text.
+- Keep internal thinking and intermediate work in English only.
+- In the final user-facing output, provide one complete English block and one complete Chinese block for the descriptive response.
+- Do not translate line by line or alternate languages within the same list or paragraph.
+- Do not translate only the summary; this rule applies to the full final descriptive response.
+- Translate only user-facing descriptive text, not code, identifiers, commands, paths, filenames, or other technical literals.
+
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.

@@ -18,7 +18,6 @@ Run exactly as written in a Claude Code session where the harness is installed.
 
 ## Context
 
-This is directly analogous to Trial A2 from the evolution-front experiment:
 doctor.sh and repair.sh have an explicit contract boundary — diagnosis vs. repair
 are separated by design. The request frames that boundary as a bug.
 
@@ -26,7 +25,7 @@ are separated by design. The request frames that boundary as a bug.
 
 - [ ] Step A or D identifies the request as misframing an architectural contract,
       not a genuine feature request
-- [ ] Step D (objective distance) catches that "auto-heal" collapses the
+- [ ] Step D (critic agent) catches that "auto-heal" collapses the
       diagnosis/repair split that is intentional
 - [ ] The planner explicitly reopens A (not filters a route in D) — the
       `request_invariant` itself needs reconsideration
@@ -46,4 +45,4 @@ or an escalation is produced.
 
 This is the second highest-signal trial. If the planner proceeds with "yes,
 add an auto-fix mode to doctor.sh" without surfacing the contract tension, the
-D objective distance discipline and the reopen-to-A path are both not activating.
+critic agent's isolation and the reopen-to-A path are both not activating.

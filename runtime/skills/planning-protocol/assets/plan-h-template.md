@@ -1,5 +1,9 @@
 # `plan-h` Output Template
 
+- `iteration`:
+- `delta_from_prior`:
+- `code_assembly_schema`:
+- `next_iteration_prompt`:
 - `mode`:
 - `request_invariant`:
 - `focus`:
@@ -7,21 +11,27 @@
 - `unknowns`:
 - `challenged_assumptions`:
 - `candidate_routes`:
-- `rejected_routes`:
+- `actionable_requirements`:
+- `rejected_aris`:
+- `conflict_notes`:
+- `accepted_constraints`:
 - `chosen_route`:
 - `why_this_route`:
 - `task_chain`:
 - `imports`:
 - `risks`:
+- `verification_target`:
+- `draft_acceptance_criteria`:
 - `freeze_condition`:
 - `probes`:
 - `probe_results`:
-- `kill_conditions`:
-- `boundary_checks`:
-- `failure_edges`:
-- `mitigations`:
+- `surviving_requirements`:
+- `killed_aris`:
+- `red_attacks`:
+- `blue_verdicts`:
 - `reopen_triggers`:
 - `review_decision`:
 - `frozen_task_chain`:
 - `execution_ready`:
 - `reopen_conditions`:
+- `reopen_target`:

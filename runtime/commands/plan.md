@@ -5,9 +5,8 @@
 - Bypass planning for simple tasks under the no-plan rule.
 - Choose `plan-e` for reasoning-complete planning.
 - Choose `plan-h` when probe and boundary checks are warranted before freeze.
-- Route the front half based on request clarity:
-  - Clear request (interpretable without challenging its premise) → `tdd-workflow` fast path.
-  - Ambiguous or suspect request (requires divergence first) → `planning-protocol` A–E.
+- Use `planning-protocol` A–E for `/plan` front-half work. Do not bypass step A
+  just because the request appears clear.
 
 ## Constraints
 
@@ -17,6 +16,8 @@
 
 ## Coordination
 
-- Dispatch to the `planner` agent.
+- Dispatch to the `planner` agent for steps A–C and E.
+- Dispatch to the `critic` agent for step D (orthogonal filtering). The critic is the
+  default owner of D — not optional.
 - Use the `planning-protocol` skill as the source of lifecycle, schema, freeze, and reopen rules.
 - Invoke probe behavior (F–G) only for `plan-h`.

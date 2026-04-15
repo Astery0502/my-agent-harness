@@ -23,13 +23,13 @@ Compare the two outputs against the same checklist. Record both results.
 
 | File | Behavior tested |
 |---|---|
-| `t1-clear-request.md` | Clear request → tdd-workflow fast path |
+| `t1-clear-request.md` | Clear request still runs planning-protocol A–E |
 | `t2-ambiguous-request.md` | Ambiguous request → planning-protocol A–E |
 | `t3-framing-trap.md` | Step D objective distance |
 | `t4-hidden-dependency.md` | Intra-chain reopen E→B |
 | `t5-misframed-request.md` | Intra-chain reopen D→A |
 | `t6-comparative.md` | New workflow vs. unstructured planning |
-| `t7-clear-but-wrong.md` | Routing precision: clear but wrong premise |
+| `t7-clear-but-wrong.md` | Clear but wrong premise is challenged in step A |
 | `t8-subtle-framing-trap.md` | D discipline under subtle (all-reasonable) framing trap |
 | `t9-long-chain-packet.md` | Constraint packet bus discipline on longer chains |
 

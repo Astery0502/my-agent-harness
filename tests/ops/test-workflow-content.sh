@@ -24,13 +24,17 @@ assert_file_contains "$SKILLS/references/artifacts.md" "context bus"
 assert_file_exists "$SKILLS/assets/constraint-packet.md"
 assert_file_contains "$SKILLS/assets/constraint-packet.md" "reopen_target"
 
-# === Step D objective distance discipline ===
+# === Step D objective distance discipline (critic agent) ===
 
-# lifecycle.md encodes the role-switch discipline at step D
+# lifecycle.md encodes the critic agent isolation rule at step D
 assert_file_contains "$SKILLS/references/lifecycle.md" "Role discipline"
 
-# planner.md carries the D discipline as a behavioral rule
-assert_file_contains "$AGENTS/planner.md" "switch roles explicitly"
+# critic agent exists and has the isolation rule
+assert_file_exists "$AGENTS/critic.md"
+assert_file_contains "$AGENTS/critic.md" "Isolation Rule"
+
+# planner.md references the critic agent for step D
+assert_file_contains "$AGENTS/planner.md" "critic"
 
 # === Intra-chain reopen paths ===
 
@@ -42,20 +46,36 @@ assert_file_contains "$SKILLS/references/artifacts.md" "reopen_target"
 
 # === Step F validation code ===
 
-assert_file_contains "$SKILLS/references/lifecycle.md" "validation code"
+assert_file_contains "$SKILLS/references/lifecycle.md" "concrete feasibility artifact"
 
-# === Clarity-based routing ===
+# === `/plan` front-half routing ===
 
-# plan.md routes by request clarity to tdd-workflow or planning-protocol
-assert_file_contains "$COMMANDS/plan.md" "tdd-workflow"
+# plan.md requires planning-protocol rather than bypassing step A
+assert_file_contains "$COMMANDS/plan.md" "Do not bypass step A"
 assert_file_contains "$COMMANDS/plan.md" "planning-protocol"
 
-# planner.md references tdd-workflow as the fast path
-assert_file_contains "$AGENTS/planner.md" "tdd-workflow"
+# planner.md keeps step A premise-checking mandatory for `/plan`
+assert_file_contains "$AGENTS/planner.md" "Do not skip step A premise-checking"
 
 # === Closed-loop feedback ===
 
 # artifacts.md documents implementation failures as valid reopen triggers
 assert_file_contains "$SKILLS/references/artifacts.md" "Implementation failures"
+
+# === ARI model ===
+
+# lifecycle.md uses actionable_requirements as the C output
+assert_file_contains "$SKILLS/references/lifecycle.md" "actionable_requirements"
+
+# lifecycle.md has Red-Blue adversarial step G
+assert_file_contains "$SKILLS/references/lifecycle.md" "Red-Blue"
+
+# === Iteration delta ===
+
+# constraint-packet.md has iteration/delta plus ECL operational fields
+assert_file_contains "$SKILLS/assets/constraint-packet.md" "iteration"
+assert_file_contains "$SKILLS/assets/constraint-packet.md" "delta_from_prior"
+assert_file_contains "$SKILLS/assets/constraint-packet.md" "code_assembly_schema"
+assert_file_contains "$SKILLS/assets/constraint-packet.md" "next_iteration_prompt"
 
 echo "PASS: workflow contract validation"

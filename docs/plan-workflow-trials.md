@@ -17,7 +17,6 @@ produces better outcomes on weak prompts.
 
 ## What this does not test
 
-- Whether the evolution-front experiment path is better (covered in `docs/evolution-front-experiment.md`)
 - Operational sync correctness (covered in `tests/ops/`)
 - Structural contract encoding (covered in `tests/ops/test-workflow-content.sh`)
 
@@ -129,7 +128,7 @@ once with `/plan`, once as plain unstructured planning — and record both score
 
 **Constraint packet at B:** `candidate_routes` = [accuracy, readability, component-summary, stateless-mode]
 
-**Step D (critique — role switch, attacking B as external skeptic):**
+**Step D (critique — critic agent, independent filtering):**
 
 *Attacking Route 1 (accuracy):* "Where is the evidence of false positives? This assumes a known bug without data. Don't plan fixes for unobserved problems." → REJECTED.
 
@@ -182,7 +181,7 @@ Surviving: Route 2 (output readability) + component grouping as a formatting imp
 
 **Constraint packet at B:** `candidate_routes` = [auto-retry, diagnostic-UX, repair-wrapper, pre-validate]
 
-**Step D (critique — ROLE SWITCH, attacking B as external skeptic):**
+**Step D (critique — critic agent, independent filtering):**
 
 *Attacking Route 1 (auto-retry):* **REJECTED.** Sync failures in this repo come from bad config, malformed state, or missing source files — not transient errors. Retrying the same broken sync produces the same failure. Worse: a partial deploy followed by retry can corrupt install-state. The diagnosis/repair split exists precisely to prevent blind auto-fix. Automatic retry without root-cause diagnosis is the wrong abstraction for this failure class.
 
@@ -230,7 +229,7 @@ Surviving: Route 2 (diagnostic UX) — honest about what the tool can do. Route 
 2. Component coverage check — do all manifest.json components have mappings in install-map?
 3. Source file existence — do all source paths in mappings point to real files in the repo?
 
-**Step C (decompose):**
+**Step C (atomize):**
 - Route 1: touches install-map JSON parsing in sync-common.sh
 - Route 2: requires cross-referencing manifest.json + install-map.json — new logic
 - Route 3: requires walking all source paths before sync — potentially slow
@@ -288,7 +287,7 @@ The gap is not fillable at E without an arbitrary choice the user hasn't made. S
 3. Reduce two-step-flow friction without adding auto-fix (better UX only)
 4. Add doctor → repair pipeline: `doctor.sh --fix` calls repair.sh internally
 
-**Step D (critique — ROLE SWITCH, attacking B as external skeptic):**
+**Step D (critique — critic agent, independent filtering):**
 
 **Routes 1, 2, and 4 all violate an intentional architectural contract.**
 
@@ -461,7 +460,7 @@ Surviving: Route 3 — incremental backup addresses the actual cost without remo
 
 **Constraint packet at B:** `candidate_routes` = [native watch, polling, git hook, staging-only watch]. Each route is individually reasonable.
 
-**Step D (critique — role switch, attacking B as external skeptic):**
+**Step D (critique — critic agent, independent filtering):**
 
 *Attacking Routes 1, 2, 3 as a group:* All three answer "how to implement the watch trigger" without questioning whether the trigger should target live. The shared latent flaw: ambient file-change detection → live deploy. Consider: (a) mid-edit save triggers a deploy of a half-written source file; (b) a feature branch edit deploys to `~/.claude/` live without the operator noticing; (c) editor temp files or extended attributes trigger spurious deploys. Routes 1–3 optimise the mechanism while implementing the wrong model.
 
@@ -512,13 +511,13 @@ Surviving: Route 3 — incremental backup addresses the actual cost without remo
 
 **Constraint packet at B:** `candidate_routes` = [manifest inline, component files, install-map, structured hints]. Note: Routes 1–3 all require hook failure semantics decided before implementation is safe.
 
-**Step C (decompose):**
+**Step C (atomize):**
 Route 1: manifest schema + sync-common.sh + install-state + doctor.sh — four surfaces  
 Route 2: discovery-based, no schema change — touches sync-common.sh + install-state + doctor.sh  
 Route 3: install-map format + parse logic + sync-common.sh  
 Route 4: sync.sh output only — no execution, no schema change
 
-**Step D (critique — external skeptic):**
+**Step D (critique — critic agent, independent filtering):**
 
 *Route 1 (manifest inline hooks):* **REJECTED.** manifest.json is a configuration file that declares what to install. Adding executable shell strings to it conflates configuration with behavior and creates a code-injection surface: any change to manifest.json can now inject arbitrary shell execution into the next sync. Wrong abstraction layer.
 
@@ -575,19 +574,18 @@ Route 4: sync.sh output only — no execution, no schema change
 
 - **Routing works.** T1 (clear request) correctly selected tdd-workflow fast path without A–E divergence. T2 (ambiguous) correctly triggered full A–E. The routing heuristic ("clear vs. ambiguous premise") is coarse but functional.
 
-- **Step D objective distance works.** T3 is the strongest signal: D explicitly rejected the "auto-retry" route as wrong for this repo's failure class — a substantive technical argument that B did not raise. D read as an external attack, not a continuation. T8 extends this: D discipline held even when all four B routes were individually reasonable. D attacked the shared underlying model (ambient live deployment) rather than singling out a bad route.
+- **Step D objective distance works.** T3 is the strongest signal: D (critic agent) explicitly rejected the "auto-retry" route as wrong for this repo's failure class — a substantive technical argument that B did not raise. D read as an independent challenge, not a continuation. T8 extends this: D discipline held even when all four B routes were individually reasonable. D attacked the shared underlying model (ambient live deployment) rather than singling out a bad route.
 
 - **Intra-chain reopens work.** Both T4 (E→B, semantic ambiguity in "validates") and T5 (D→A, architectural contract misframing) produced named `reopen_target` rather than silent patching or full restarts. The reopens targeted the nearest broken step. T9 extends this: a blocking unknown at D (hook failure semantics) was resolved as an in-step design decision and recorded in the packet, avoiding a reopen — the correct outcome when the unknown is resolvable locally.
 
 - **Constraint packet updates are visible.** Across all trials, packet fields were populated at A, updated through B and D, and finalized at E. The lifecycle is now traceable rather than a black-box emit at the end. T9 provides the longest chain: five integration surfaces, packet updated four times, no drift between steps, no silent constraint drop.
 
-- **Workflow beats unstructured on weak prompts (T6).** The pattern matches the evolution-front experiment: unstructured planning implements the proposed solution directly; the workflow challenges the premise before committing. 6/6 vs. 0/6 on both T6 prompts.
+- **Workflow beats unstructured on weak prompts (T6).** Unstructured planning implements the proposed solution directly; the workflow challenges the premise before committing. 6/6 vs. 0/6 on both T6 prompts.
 
 - **Routing catches explicit suspect premises.** T7 confirms that a syntactically clear request routes to A–E when the stated rationale contains a challengeable premise. The routing heuristic checks premise soundness, not just syntactic clarity.
 
 ### What the completed trials do not yet support
 
-- Replacing the evolution-front path: these trials tested the default `/plan` path, not the challenger
 - Multiple runs of the same trial: each trial was run once; LLM non-determinism means a single run is suggestive, not conclusive
 - Routing precision on clear-but-wrong requests without an explicit suspect rationale (T7 passed, but the suspect premise was stated in the prompt; a bare flag request may still route to tdd-workflow without surfacing the category error)
 
@@ -601,4 +599,3 @@ Route 4: sync.sh output only — no execution, no schema change
 
 - Trial prompts: `tests/workflow/plan-workflow/`
 - Structural contract tests: `tests/ops/test-workflow-content.sh`
-- Evolution-front experiment (prior work): `docs/evolution-front-experiment.md`

@@ -61,5 +61,4 @@ The new workflow scores higher than the unstructured baseline on at least 4 of
 
 ## Notes
 
-This trial directly follows the evolution-front experiment methodology. Use the
-same isolated context for each run to avoid cross-contamination.
+Use an isolated context for each run to avoid cross-contamination.

@@ -18,7 +18,7 @@ Run exactly as written in a Claude Code session where the harness is installed.
 
 ## What to observe
 
-- [ ] The planner signals it is using the planning-protocol A–E path (NOT tdd-workflow)
+- [ ] The planner signals it is using the planning-protocol A–E path
 - [ ] Step A surfaces at least two distinct interpretations of "better"
 - [ ] Step B generates 2–4 candidate routes (e.g., improve drift detection accuracy,
       improve output formatting, add auto-repair, improve speed)
@@ -29,7 +29,7 @@ Run exactly as written in a Claude Code session where the harness is installed.
 
 ## Pass condition
 
-The planner uses A–E diverge-converge reasoning, not a fast path. At least one
+The planner uses A–E diverge-converge reasoning. At least one
 candidate route from B is challenged or rejected at D with a reason.
 
 ## Notes

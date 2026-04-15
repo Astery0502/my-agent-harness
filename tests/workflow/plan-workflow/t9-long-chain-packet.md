@@ -22,7 +22,7 @@ Run exactly as written in a Claude Code session where the harness is installed.
 ## What to observe
 
 **Routing and step A:**
-- [ ] The planner routes to planning-protocol A–E (not tdd-workflow fast path)
+- [ ] The planner routes to planning-protocol A–E
 - [ ] Step A names at least two challenged assumptions in `challenged_assumptions`
       (e.g., "hook scripts are safe to run without sandboxing", "hook failures
       should not abort the full sync")

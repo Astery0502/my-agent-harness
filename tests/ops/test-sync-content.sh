@@ -24,7 +24,7 @@ assert_file_contains "$TEST_REPO/.local/staging/claude/CLAUDE.md" "Behavioral gu
 
 # 3. Agent files
 assert_file_exists "$TEST_REPO/.local/staging/claude/agents/planner.md"
-assert_file_contains "$TEST_REPO/.local/staging/claude/agents/planner.md" "switch roles explicitly"
+assert_file_contains "$TEST_REPO/.local/staging/claude/agents/planner.md" "critic"
 assert_file_contains "$TEST_REPO/.local/staging/claude/skills/planning-protocol/references/lifecycle.md" "request_invariant"
 
 # 4. Command files
@@ -90,84 +90,96 @@ assert_file_not_contains "$TEST_REPO/.local/staging/codex/shared-agents/planner.
 
 # === Evolution-front experiment content ===
 
-# 17. Claude evolution-front files
-assert_file_exists "$TEST_REPO/.local/staging/claude/commands/evolution-plan.md"
-assert_file_exists "$TEST_REPO/.local/staging/claude/agents/evolution-planner.md"
-assert_file_exists "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/SKILL.md"
-assert_file_exists "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/templates/evidence-chain.md"
-assert_file_exists "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/templates/constraint-packet.md"
+# Validate the experiment only when its runtime files are present in the source
+# repo. This keeps the sync-content test aligned with the current runtime
+# surface rather than requiring optional experiment files unconditionally.
+if [[ -e "$TEST_REPO/runtime/commands/evolution-plan.md" ]]; then
+  # 17. Claude evolution-front files
+  assert_file_exists "$TEST_REPO/.local/staging/claude/commands/evolution-plan.md"
+  assert_file_exists "$TEST_REPO/.local/staging/claude/agents/evolution-planner.md"
+  assert_file_exists "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/SKILL.md"
+  assert_file_exists "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/templates/evidence-chain.md"
+  assert_file_exists "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/templates/constraint-packet.md"
 
-# 18. Codex evolution-front files
-assert_file_exists "$TEST_REPO/.local/staging/codex/prompts/evolution-plan.md"
-assert_file_exists "$TEST_REPO/.local/staging/codex/shared-agents/evolution-planner.md"
-assert_file_exists "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/SKILL.md"
-assert_file_exists "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/templates/evidence-chain.md"
-assert_file_exists "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/templates/constraint-packet.md"
+  # 18. Codex evolution-front files
+  assert_file_exists "$TEST_REPO/.local/staging/codex/prompts/evolution-plan.md"
+  assert_file_exists "$TEST_REPO/.local/staging/codex/shared-agents/evolution-planner.md"
+  assert_file_exists "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/SKILL.md"
+  assert_file_exists "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/templates/evidence-chain.md"
+  assert_file_exists "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/templates/constraint-packet.md"
 
-# 19. Evolution plan command content
-for path in \
-  "$TEST_REPO/.local/staging/claude/commands/evolution-plan.md" \
-  "$TEST_REPO/.local/staging/codex/prompts/evolution-plan.md"
-do
-  assert_file_contains "$path" "/evolution-plan"
-  assert_file_contains "$path" "evolution planner agent"
-  assert_file_contains "$path" "evolution-front-experiment"
-  assert_file_contains "$path" "evidence chain record"
-  assert_file_contains "$path" "probe_evidence"
-  assert_file_contains "$path" "reopen_event"
-  assert_file_not_contains "$path" "agents/evolution-planner.md"
-done
+  # 19. Evolution plan command content
+  for path in \
+    "$TEST_REPO/.local/staging/claude/commands/evolution-plan.md" \
+    "$TEST_REPO/.local/staging/codex/prompts/evolution-plan.md"
+  do
+    assert_file_contains "$path" "/evolution-plan"
+    assert_file_contains "$path" "evolution planner agent"
+    assert_file_contains "$path" "evolution-front-experiment"
+    assert_file_contains "$path" "evidence chain record"
+    assert_file_contains "$path" "probe_evidence"
+    assert_file_contains "$path" "reopen_event"
+    assert_file_not_contains "$path" "agents/evolution-planner.md"
+  done
 
-# 20. Evolution planner agent content
-for path in \
-  "$TEST_REPO/.local/staging/claude/agents/evolution-planner.md" \
-  "$TEST_REPO/.local/staging/codex/shared-agents/evolution-planner.md"
-do
-  assert_file_contains "$path" "opt-in evolution-front experiment"
-  assert_file_contains "$path" "constraint packet"
-done
+  # 20. Evolution planner agent content
+  for path in \
+    "$TEST_REPO/.local/staging/claude/agents/evolution-planner.md" \
+    "$TEST_REPO/.local/staging/codex/shared-agents/evolution-planner.md"
+  do
+    assert_file_contains "$path" "opt-in evolution-front experiment"
+    assert_file_contains "$path" "constraint packet"
+  done
 
-# 21. Evolution-front skill content
-for path in \
-  "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/SKILL.md" \
-  "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/SKILL.md"
-do
-  assert_file_contains "$path" "opt-in"
-  assert_file_contains "$path" "three operational phases"
-  assert_file_contains "$path" "evidence chain record"
-  assert_file_contains "$path" "minimum required schema"
-  assert_file_contains "$path" "reopen_event"
-done
+  # 21. Evolution-front skill content
+  for path in \
+    "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/SKILL.md" \
+    "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/SKILL.md"
+  do
+    assert_file_contains "$path" "opt-in"
+    assert_file_contains "$path" "three operational phases"
+    assert_file_contains "$path" "evidence chain record"
+    assert_file_contains "$path" "minimum required schema"
+    assert_file_contains "$path" "reopen_event"
+  done
 
-# 22. Evidence chain template fields
-for field in \
-  clarified_request \
-  suspect_claims \
-  candidate_strategies \
-  accepted_constraints \
-  rejected_constraints \
-  probe_evidence \
-  frozen_decision \
-  verification_target \
-  reopen_trigger
-do
-  assert_file_contains "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/templates/evidence-chain.md" "$field"
-  assert_file_contains "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/templates/evidence-chain.md" "$field"
-done
+  # 22. Evidence chain template fields
+  for field in \
+    clarified_request \
+    suspect_claims \
+    candidate_strategies \
+    accepted_constraints \
+    rejected_constraints \
+    probe_evidence \
+    frozen_decision \
+    verification_target \
+    reopen_trigger
+  do
+    assert_file_contains "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/templates/evidence-chain.md" "$field"
+    assert_file_contains "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/templates/evidence-chain.md" "$field"
+  done
 
-# 23. Constraint packet template fields
-for field in \
-  task_statement \
-  clarified_assumptions \
-  rejected_interpretations \
-  chosen_direction \
-  open_risks \
-  probe_evidence \
-  draft_acceptance_criteria \
-  verification_target
-do
-  assert_file_contains "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/templates/constraint-packet.md" "$field"
-  assert_file_contains "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/templates/constraint-packet.md" "$field"
-done
+  # 23. Constraint packet template fields
+  for field in \
+    task_statement \
+    clarified_assumptions \
+    rejected_interpretations \
+    chosen_direction \
+    open_risks \
+    probe_evidence \
+    draft_acceptance_criteria \
+    verification_target
+  do
+    assert_file_contains "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/templates/constraint-packet.md" "$field"
+    assert_file_contains "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/templates/constraint-packet.md" "$field"
+  done
+else
+  assert_file_missing "$TEST_REPO/.local/staging/claude/commands/evolution-plan.md"
+  assert_file_missing "$TEST_REPO/.local/staging/claude/agents/evolution-planner.md"
+  assert_file_missing "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment"
+  assert_file_missing "$TEST_REPO/.local/staging/codex/prompts/evolution-plan.md"
+  assert_file_missing "$TEST_REPO/.local/staging/codex/shared-agents/evolution-planner.md"
+  assert_file_missing "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment"
+fi
 
 echo "PASS: sync content validation"

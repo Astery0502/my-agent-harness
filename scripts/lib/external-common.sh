@@ -47,6 +47,7 @@ _externals_fetch_one() {
   local url="$3"
   local ref="${4:-}"
   local skill_dir
+  local tmp_dir=""
   skill_dir="$(layout_external_skill_dir "$repo_root" "$slug")"
 
   if [[ ! -d "$skill_dir/.git" ]]; then
@@ -72,9 +73,7 @@ _externals_fetch_one() {
 
   if ! git -C "$skill_dir" fetch --quiet origin 2>/dev/null; then
     # gh fallback: re-clone the cache dir (it's disposable)
-    local tmp_dir
     tmp_dir="$(mktemp -d)"
-    trap 'rm -rf "$tmp_dir"' RETURN
     if _externals_gh_clone "$url" "$tmp_dir"; then
       rm -rf "$skill_dir"
       mv "$tmp_dir" "$skill_dir"

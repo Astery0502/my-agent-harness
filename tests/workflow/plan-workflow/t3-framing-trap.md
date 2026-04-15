@@ -20,9 +20,9 @@ Run exactly as written in a Claude Code session where the harness is installed.
 
 - [ ] Step B expands the prompt (likely including routes around retry logic,
       state repair, idempotent re-runs)
-- [ ] Step D explicitly switches role — the output reads as challenge, not
-      continuation. Look for: "attacking from the outside", rejection of the
-      automatic retry assumption, or a statement that the premise may be wrong
+- [ ] Step D (critic agent) reads as challenge, not continuation. Look for:
+      rejection of the automatic retry assumption, or a statement that the
+      premise may be wrong
 - [ ] Step D surfaces the design tension: sync failures may be due to bad state,
       wrong manifest, or deploy errors — automatic retry without root cause
       analysis may loop on the same failure
@@ -31,12 +31,12 @@ Run exactly as written in a Claude Code session where the harness is installed.
 
 ## Pass condition
 
-Step D produces a visible role switch and challenges the "automatic retry"
-assumption. The final task chain is not a direct implementation of the input
-prompt's suggested solution.
+Step D (critic agent) challenges the "automatic retry" assumption independently.
+The final task chain is not a direct implementation of the input prompt's suggested
+solution.
 
 ## Notes
 
 This is the highest-signal conformance test for the D discipline change. If D
 reads as a continuation of B (e.g., "the retry approach is good, let's add
-exponential backoff"), the role-switch discipline is not activating.
+exponential backoff"), the critic agent's isolation is not activating.
