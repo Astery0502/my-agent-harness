@@ -12,6 +12,8 @@
 - `challenged_assumptions`:
 - `candidate_routes`:
 - `actionable_requirements`:
+- `ari_dependency_graph`:
+- `route_to_ari_mapping`:
 - `rejected_aris`:
 - `conflict_notes`:
 - `accepted_constraints`:

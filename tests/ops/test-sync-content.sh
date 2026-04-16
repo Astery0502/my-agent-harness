@@ -56,6 +56,7 @@ assert_file_exists "$TEST_REPO/.local/staging/codex/AGENTS.md"
 assert_file_exists "$TEST_REPO/.local/staging/codex/config.toml"
 assert_dir_exists "$TEST_REPO/.local/staging/codex/shared-agents"
 assert_dir_exists "$TEST_REPO/.local/staging/codex/skills"
+assert_dir_exists "$TEST_REPO/.local/staging/codex/commands"
 assert_dir_exists "$TEST_REPO/.local/staging/codex/prompts"
 assert_dir_exists "$TEST_REPO/.local/staging/codex/rules"
 
@@ -69,10 +70,16 @@ assert_file_contains "$TEST_REPO/.local/staging/codex/AGENTS.md" "Behavioral gui
 assert_file_exists "$TEST_REPO/.local/staging/codex/shared-agents/planner.md"
 assert_file_exists "$TEST_REPO/.local/staging/codex/shared-agents/debugger.md"
 
-# 12. Commands mapped to prompts/ (not commands/)
+# 12. Commands mapped to commands/ for Codex slash-command discovery
+assert_file_exists "$TEST_REPO/.local/staging/codex/commands/plan.md"
+assert_file_contains "$TEST_REPO/.local/staging/codex/commands/plan.md" "planning-protocol"
+assert_file_contains "$TEST_REPO/.local/staging/codex/commands/plan.md" "name: plan"
+assert_file_contains "$TEST_REPO/.local/staging/codex/commands/plan.md" "description: Create a structured implementation plan"
+
+# 12b. Legacy prompt mirror kept for compatibility with older Codex builds
 assert_file_exists "$TEST_REPO/.local/staging/codex/prompts/plan.md"
 assert_file_contains "$TEST_REPO/.local/staging/codex/prompts/plan.md" "planning-protocol"
-assert_file_missing "$TEST_REPO/.local/staging/codex/commands"
+assert_file_contains "$TEST_REPO/.local/staging/codex/prompts/plan.md" "name: plan"
 
 # 13. Skills
 assert_file_contains "$TEST_REPO/.local/staging/codex/skills/tdd-workflow/SKILL.md" "name: tdd-workflow"
@@ -85,6 +92,7 @@ assert_file_missing "$TEST_REPO/.local/staging/codex/AGENTS.supplement.md"
 assert_file_missing "$TEST_REPO/.local/staging/codex/config.base.toml"
 
 # 16. No runtime/ paths in deployed content
+assert_file_not_contains "$TEST_REPO/.local/staging/codex/commands/plan.md" "runtime/"
 assert_file_not_contains "$TEST_REPO/.local/staging/codex/prompts/plan.md" "runtime/"
 assert_file_not_contains "$TEST_REPO/.local/staging/codex/shared-agents/planner.md" "runtime/"
 
@@ -102,6 +110,7 @@ if [[ -e "$TEST_REPO/runtime/commands/evolution-plan.md" ]]; then
   assert_file_exists "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/templates/constraint-packet.md"
 
   # 18. Codex evolution-front files
+  assert_file_exists "$TEST_REPO/.local/staging/codex/commands/evolution-plan.md"
   assert_file_exists "$TEST_REPO/.local/staging/codex/prompts/evolution-plan.md"
   assert_file_exists "$TEST_REPO/.local/staging/codex/shared-agents/evolution-planner.md"
   assert_file_exists "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/SKILL.md"
@@ -111,7 +120,7 @@ if [[ -e "$TEST_REPO/runtime/commands/evolution-plan.md" ]]; then
   # 19. Evolution plan command content
   for path in \
     "$TEST_REPO/.local/staging/claude/commands/evolution-plan.md" \
-    "$TEST_REPO/.local/staging/codex/prompts/evolution-plan.md"
+    "$TEST_REPO/.local/staging/codex/commands/evolution-plan.md"
   do
     assert_file_contains "$path" "/evolution-plan"
     assert_file_contains "$path" "evolution planner agent"
@@ -121,6 +130,7 @@ if [[ -e "$TEST_REPO/runtime/commands/evolution-plan.md" ]]; then
     assert_file_contains "$path" "reopen_event"
     assert_file_not_contains "$path" "agents/evolution-planner.md"
   done
+  assert_file_contains "$TEST_REPO/.local/staging/codex/prompts/evolution-plan.md" "/evolution-plan"
 
   # 20. Evolution planner agent content
   for path in \
@@ -177,6 +187,7 @@ else
   assert_file_missing "$TEST_REPO/.local/staging/claude/commands/evolution-plan.md"
   assert_file_missing "$TEST_REPO/.local/staging/claude/agents/evolution-planner.md"
   assert_file_missing "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment"
+  assert_file_missing "$TEST_REPO/.local/staging/codex/commands/evolution-plan.md"
   assert_file_missing "$TEST_REPO/.local/staging/codex/prompts/evolution-plan.md"
   assert_file_missing "$TEST_REPO/.local/staging/codex/shared-agents/evolution-planner.md"
   assert_file_missing "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment"

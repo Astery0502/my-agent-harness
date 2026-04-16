@@ -5,8 +5,18 @@ This file defines the normative A–H lifecycle for `/plan`.
 ## Agent Operating Model
 
 - Treat the constraint packet as the shared context bus. Each step reads the current packet, updates only its named fields, and hands the packet forward.
+- Persist the packet in one workspace-local file, `.constraint-packet.md` in the current working directory of the `/plan` run. This file is the live `constraint_packet` for the lifecycle.
 - When a different role owns a step, prefer a fresh read of the current packet and that step's local inputs rather than relying on stale conversational memory.
 - A reopen is targeted constraint re-entry into the nearest broken upstream step, not a full restart by default.
+
+## File-Backed Operating Rule
+
+- The lifecycle is file-backed by default. Do not forward the packet through memory alone.
+- Step start: read `.constraint-packet.md` first. If it does not exist yet, only step A may create it.
+- Step work: update only the fields owned by the current step.
+- Step end: overwrite `.constraint-packet.md` once before any handoff, stop, or role transfer, even if the step only confirmed or preserved existing fields.
+- Ownership transfer: the next role must read `.constraint-packet.md` before continuing; conversational memory is not authoritative.
+- Reopen or re-entry: reuse the same `.constraint-packet.md` file. Do not delete it, replace it with a new path, or restart from a blank packet. Increment `iteration`, record `delta_from_prior`, and continue from `reopen_target`.
 
 ## Decomposition Hierarchy
 
@@ -19,6 +29,8 @@ requirement → feature → module → function
 
 Actionable Requirement Items (ARIs) produced at step C should be traceable to this
 level. The task chain at step E sequences ARIs but does not replace them.
+
+All steps below must follow the File-Backed Operating Rule.
 
 ## Step A. Preprocess
 
@@ -46,8 +58,8 @@ level. The task chain at step E sequences ARIs but does not replace them.
 - Purpose: translate candidate routes into independently evaluable requirement items.
 - Goals: break each surviving route into Actionable Requirement Items (ARIs). Each ARI must have: a statement, an acceptance criterion, a parent route, and a testable boolean outcome. ARIs are the leaf nodes of the decomposition hierarchy (requirement → feature → module → function). TDD is the foundational execution paradigm: every ARI must have a corresponding test before it is accepted — an ARI without a testable acceptance criterion is not complete.
 - Ownership: planner.
-- Required output: `actionable_requirements` (ARI set), dependency graph between ARIs, route-to-ARI mapping.
-- Constraint packet update: add `actionable_requirements` to the packet.
+- Required output: `actionable_requirements` (ARI set), `ari_dependency_graph`, `route_to_ari_mapping`.
+- Constraint packet update: add `actionable_requirements`, `ari_dependency_graph`, and `route_to_ari_mapping` to the packet.
 - Upstream reopen condition: if atomization surfaces a hidden requirement that invalidates the `request_invariant`, reopen A before continuing.
 - Stop condition: every surviving route can be expressed as a bounded set of ARIs, each independently evaluable.
 - Modes: `plan-e`, `plan-h`.
@@ -57,7 +69,7 @@ level. The task chain at step E sequences ARIs but does not replace them.
 - Purpose: reject weak, conflicting, or hallucinated ARIs via an independent observer.
 - Goals: remove unreasonable ARIs, resolve requirement conflicts, and reduce noise.
 - Ownership: `critic` agent by default. The planner submits the ARI set and steps back — the planner does not run D.
-- Critic isolation: the critic agent has no prior context of steps A–C. It receives only the ARI set and the route set as inputs. This zero shared-context property is what makes the filtering objective.
+- Critic isolation: the critic agent has no prior context of steps A–C. It receives only the ARI set, the route set, and the `route_to_ari_mapping` when needed for objective filtering. This zero shared-context property is what makes the filtering objective.
 - Role discipline: apply orthogonal filtering — reject ARIs that are non-objective, internally contradictory, duplicated, or infeasible from first principles. When two ARIs conflict, prefer the one that supports the broader end-to-end chain. Document the conflict and the resolution rationale.
 - Required output: `rejected_aris` (with rejection reason per ARI), `conflict_notes`, surviving ARI set, `accepted_constraints`.
 - Constraint packet update: update `actionable_requirements` to the surviving set; add `rejected_aris`, `conflict_notes`, and `accepted_constraints`.

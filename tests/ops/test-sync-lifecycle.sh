@@ -121,22 +121,34 @@ touch "$TEST_HOME/.claude/my-custom-file.txt"
 run_sync --platform claude >/dev/null
 assert_file_exists "$TEST_HOME/.claude/my-custom-file.txt"
 
-# 12. Default profile (no --profile flag)
+# 12. Live re-sync prunes stale previously-managed targets after mapping changes
+mkdir -p "$TEST_HOME/.codex/legacy-prompts"
+printf 'stale command\n' > "$TEST_HOME/.codex/legacy-prompts/evolution-plan.md"
+jq '.componentTargets["shared-commands"] = ["legacy-prompts"]' \
+  "$TEST_REPO/.local/install-state/live/codex.json" > "$TEST_REPO/.local/install-state/live/codex.json.tmp"
+mv "$TEST_REPO/.local/install-state/live/codex.json.tmp" "$TEST_REPO/.local/install-state/live/codex.json"
+run_sync --platform codex --profile codex-only >/dev/null
+assert_file_missing "$TEST_HOME/.codex/legacy-prompts/evolution-plan.md"
+assert_file_missing "$TEST_HOME/.codex/legacy-prompts"
+assert_file_exists "$TEST_HOME/.codex/prompts/plan.md"
+assert_file_exists "$TEST_HOME/.codex/commands/plan.md"
+
+# 13. Default profile (no --profile flag)
 default_output="$(run_sync --platform claude --target staging)"
 assert_contains "$default_output" "profile: claude-only"
 
-# 13. Double sync skips deploy when nothing changed
+# 14. Double sync skips deploy when nothing changed
 second_output="$(run_sync --platform claude)"
 assert_contains "$second_output" "sync: up-to-date"
 assert_contains "$second_output" "nothing to deploy"
 assert_not_contains "$second_output" "backups:"
 
-# 14. After source change, sync deploys again
+# 15. After source change, sync deploys again
 printf '\n# new content\n' >> "$TEST_REPO/runtime/HARNESS.md"
 changed_output="$(run_sync --platform claude)"
 assert_contains "$changed_output" "sync: installed"
 
-# 15. Backup pruning keeps only 3 most recent
+# 16. Backup pruning keeps only 3 most recent
 # We already have backups from steps 3 (codex) and current claude syncs.
 # Force 5 claude backups by making changes and syncing.
 for i in 1 2 3 4 5; do

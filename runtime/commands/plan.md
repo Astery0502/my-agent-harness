@@ -1,3 +1,8 @@
+---
+name: plan
+description: Create a structured implementation plan for non-trivial work. Use when the user explicitly asks for a plan or when the task needs clarification, route comparison, constraints, risks, or phased execution before coding.
+---
+
 # /plan
 
 ## Admission

@@ -29,6 +29,11 @@
     {
       "component": "shared-commands",
       "source": "runtime/commands",
+      "target": "commands"
+    },
+    {
+      "component": "shared-commands",
+      "source": "runtime/commands",
       "target": "prompts"
     },
     {

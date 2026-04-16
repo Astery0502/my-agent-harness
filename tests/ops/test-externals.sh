@@ -142,7 +142,31 @@ assert_contains "$out" "sync: installed"
 assert_file_exists "$TEST_REPO/.local/staging/claude/skills/mock-skill/SKILL.md"
 assert_file_missing "$TEST_REPO/.local/staging/claude/skills/bad-skill/SKILL.md"
 
-# --- 10. sub_path — only the named subdirectory is deployed ---
+# --- 10. Hung clone times out and sync continues ---
+
+FAKE_BIN="$TMP_DIR/fake-bin"
+mkdir -p "$FAKE_BIN"
+REAL_GIT="$(command -v git)"
+cat > "$FAKE_BIN/git" <<EOF
+#!/usr/bin/env bash
+if [[ "\$1" == "clone" ]]; then
+  sleep 2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$FAKE_BIN/git"
+
+printf '[{"name":"slow-skill","url":"%s","ref":"main"}]\n' "$MOCK_REMOTE" \
+  > "$TEST_REPO/ops/external-skills.json"
+rm -rf "$TEST_REPO/.local/external"
+
+out="$(PATH="$FAKE_BIN:$PATH" EXTERNALS_FETCH_TIMEOUT=1 HOME="$TEST_HOME" ./scripts/sync.sh --platform claude 2>&1)"
+assert_contains "$out" "external warning: timed out cloning"
+assert_contains "$out" "sync: installed"
+assert_file_missing "$TEST_HOME/.claude/skills/slow-skill/SKILL.md"
+
+# --- 11. sub_path — only the named subdirectory is deployed ---
 
 MOCK_REMOTE_SUB="$TMP_DIR/mock-remote-sub.git"
 mkdir -p "$MOCK_REMOTE_SUB"
@@ -175,7 +199,7 @@ assert_file_contains "$TEST_HOME/.claude/skills/sub-skill/SKILL.md" "Sub Skill"
 # Root-level file from the repo must not appear
 assert_file_missing "$TEST_HOME/.claude/skills/sub-skill/root-file.md"
 
-# --- 11. Two skills from the same repo share one clone ---
+# --- 12. Two skills from the same repo share one clone ---
 
 MOCK_REMOTE_MULTI="$TMP_DIR/mock-remote-multi.git"
 mkdir -p "$MOCK_REMOTE_MULTI"

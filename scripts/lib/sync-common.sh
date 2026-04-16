@@ -372,6 +372,17 @@ sync_prune_backups() {
   done < <(ls -1 "$backups_dir" | LC_ALL=C sort -r)
 }
 
+sync_previous_targets_flat() {
+  local state_file="$1"
+
+  if [[ ! -f "$state_file" ]]; then
+    printf '[]\n'
+    return 0
+  fi
+
+  jq -c '[.componentTargets // {} | to_entries[] | .value[]] | unique' "$state_file"
+}
+
 # --- Deploy ---
 
 sync_deploy() {
@@ -382,6 +393,7 @@ sync_deploy() {
   local repo_root="$5"
   local platform="$6"
   local work_dir="$7"
+  local previous_targets_json="${8:-[]}"
   local applied_count=0
   local backup_count=0
   local backup_root=""
@@ -395,6 +407,32 @@ sync_deploy() {
       ;;
     live)
       mkdir -p "$target_root"
+      local current_targets_json
+      current_targets_json="$(jq -c '[.[].target] | unique' <<<"$actions")"
+
+      while IFS= read -r stale_target; do
+        [[ -n "$stale_target" ]] || continue
+        if [[ -e "$target_root/$stale_target" ]]; then
+          if [[ -z "$backup_root" ]]; then
+            local ts
+            ts="$(date -u +"%Y%m%dT%H%M%SZ")"
+            backup_root="$(layout_backup_root_for "$repo_root" "$platform" "$ts")"
+            mkdir -p "$backup_root"
+          fi
+          mkdir -p "$(dirname "$backup_root/$stale_target")"
+          rm -rf "$backup_root/$stale_target"
+          cp -R "$target_root/$stale_target" "$backup_root/$stale_target"
+          rm -rf "$target_root/$stale_target"
+          backup_count=$((backup_count + 1))
+        fi
+      done < <(
+        jq -r \
+          -n \
+          --argjson previous "$previous_targets_json" \
+          --argjson current "$current_targets_json" \
+          '$previous[] as $target | if ($current | index($target)) then empty else $target end'
+      )
+
       local action_count
       action_count="$(jq 'length' <<<"$actions")"
       local i=0
@@ -646,6 +684,10 @@ sync_run() {
 
   local state_file
   state_file="$(layout_install_state_file_for "$repo_root" "$platform" "$target")"
+  local previous_targets_json='[]'
+  if [[ -f "$state_file" ]]; then
+    previous_targets_json="$(sync_previous_targets_flat "$state_file")"
+  fi
 
   # skip deploy if nothing changed (live only — staging always does atomic replace)
   if [[ "$target" == "live" && -f "$state_file" ]]; then
@@ -676,7 +718,7 @@ sync_run() {
   fi
 
   local deploy_report
-  deploy_report="$(sync_deploy "$build_root" "$target_root" "$target" "$actions" "$repo_root" "$platform" "$work_dir")"
+  deploy_report="$(sync_deploy "$build_root" "$target_root" "$target" "$actions" "$repo_root" "$platform" "$work_dir" "$previous_targets_json")"
 
   sync_record "$state_file" "$platform" "$profile" "$digest_info" "$target_root" "$components_json"
 

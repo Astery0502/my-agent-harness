@@ -49,7 +49,7 @@ while IFS= read -r platform; do
       ;;
     installed)
       ops_validate_installed_target_root "$REPO_ROOT" "$target_root" "$platform" "$TARGET" >/dev/null
-      "$SCRIPT_DIR/sync.sh" --platform "$platform" --profile "$profile" --target "$TARGET" >/dev/null
+      "$SCRIPT_DIR/sync.sh" --platform "$platform" --profile "$profile" --target "$TARGET" >/dev/null </dev/null
       printf '%s\n' "$platform: repaired"
       ;;
     *)

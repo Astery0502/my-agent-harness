@@ -17,10 +17,21 @@ at the end of planning — it is initiated at step A and updated forward through
 each step. This makes the state of constraints visible at every checkpoint,
 so a failure can be traced to the step where the bad assumption entered the chain.
 
+Keep one live packet file at `.constraint-packet.md` in the current working
+directory of the `/plan` run. This file is the live `constraint_packet` during
+planning. Reuse that path throughout the lifecycle, read it at the start of
+every step, and overwrite it once at the end of every step before any handoff
+or stop. Do not create per-step snapshot files by default.
+
 The packet carries an `iteration` counter. On first run it is 0. Each reopen
 or re-entry increments it. The `delta_from_prior` field records what changed
 from the prior iteration so that a looping plan accumulates a traceable history
 rather than overwriting its prior state.
+
+On reopen or re-entry, continue in the same `.constraint-packet.md` file. Do
+not delete the file, replace it with a new packet path, or reconstruct the
+packet from scratch. The existing packet is the carry-forward record; the new
+iteration updates it in place.
 
 The frozen packet must stay operational rather than prose-only. If the packet
 cannot tell another model how to assemble the next implementation slice or how
@@ -30,6 +41,7 @@ to prompt the next iteration, the language has not been fully encoded.
 
 - Keep the packet machine-readable and stable across prompts, templates, and step handoffs. A later agent should not have to guess whether two field names mean the same thing.
 - Treat the packet as the primary shared state. Another agent should be able to continue from the packet without re-reading the whole planning conversation.
+- Treat `.constraint-packet.md` as authoritative during the lifecycle. If information is not written there, it has not been forwarded.
 - Record actual changes on re-entry in `delta_from_prior` rather than silently overwriting prior conclusions; the loop is supposed to stay traceable.
 
 See `assets/constraint-packet.md` for the canonical template used as the
@@ -47,6 +59,8 @@ terminal handoff artifact.
 - `challenged_assumptions`: input assumptions questioned during preprocess.
 - `candidate_routes`: bounded set of plausible planning routes considered during expansion.
 - `actionable_requirements`: the surviving ARI set after step D (and F/G for plan-h). Each ARI has a statement, acceptance criterion, parent route, and testable boolean outcome. This is the primary constraint set that drives the rest of the plan.
+- `ari_dependency_graph`: the explicit dependency structure between ARIs produced at step C and carried forward for completion and reopen reasoning.
+- `route_to_ari_mapping`: the explicit mapping between candidate routes and the ARIs derived from each route.
 - `rejected_aris`: ARIs removed during critique/filter, with rejection reason per ARI.
 - `conflict_notes`: conflicts discovered during critique/filter, with the resolution rationale for each retained choice.
 - `accepted_constraints`: constraints derived from the surviving ARI set after step D.

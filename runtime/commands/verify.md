@@ -1,3 +1,8 @@
+---
+name: verify
+description: Run targeted verification for the current task. Use when changes need tests, checks, or validation before we claim the work is complete.
+---
+
 # /verify
 
 ## Role

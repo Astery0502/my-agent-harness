@@ -20,6 +20,22 @@ externals_warn() {
   echo "external warning: $*" >&2
 }
 
+externals_fetch_timeout_seconds() {
+  local configured="${EXTERNALS_FETCH_TIMEOUT:-15}"
+  if [[ "$configured" =~ ^[0-9]+$ ]] && (( configured > 0 )); then
+    printf '%s\n' "$configured"
+    return 0
+  fi
+  printf '%s\n' "15"
+}
+
+_externals_run_with_timeout() {
+  local seconds="$1"
+  shift
+
+  perl -e 'alarm shift @ARGV; exec @ARGV' "$seconds" "$@"
+}
+
 # Derive a stable, filesystem-safe slug from a git URL for use as a cache dir name.
 _externals_url_to_slug() {
   local url="$1"
@@ -34,9 +50,12 @@ _externals_gh_clone() {
   local dest="$2"
   command -v gh >/dev/null 2>&1 || return 1
   [[ "$url" == *://github.com/* ]] || return 1
+  local timeout_seconds
+  timeout_seconds="$(externals_fetch_timeout_seconds)"
   local repo_path
   repo_path="$(printf '%s' "$url" | sed 's|.*github\.com/||; s|\.git$||')"
-  gh repo clone "$repo_path" "$dest" -- --quiet 2>/dev/null
+  _externals_run_with_timeout "$timeout_seconds" \
+    gh repo clone "$repo_path" "$dest" -- --quiet 2>/dev/null
 }
 
 # Fetch (clone or pull) one repo by slug (URL-derived cache dir name).
@@ -48,10 +67,20 @@ _externals_fetch_one() {
   local ref="${4:-}"
   local skill_dir
   local tmp_dir=""
+  local timeout_seconds
+  local status
   skill_dir="$(layout_external_skill_dir "$repo_root" "$slug")"
+  timeout_seconds="$(externals_fetch_timeout_seconds)"
 
   if [[ ! -d "$skill_dir/.git" ]]; then
-    if ! git clone --quiet "$url" "$skill_dir" 2>/dev/null; then
+    status=0
+    _externals_run_with_timeout "$timeout_seconds" \
+      git clone --quiet "$url" "$skill_dir" 2>/dev/null || status=$?
+    if (( status != 0 )); then
+      if (( status == 142 )); then
+        externals_warn "timed out cloning $slug from $url"
+        return 1
+      fi
       if ! _externals_gh_clone "$url" "$skill_dir"; then
         externals_warn "failed to clone $slug from $url"
         return 1
@@ -71,7 +100,14 @@ _externals_fetch_one() {
   local old_head
   old_head="$(git -C "$skill_dir" rev-parse HEAD 2>/dev/null)" || old_head=""
 
-  if ! git -C "$skill_dir" fetch --quiet origin 2>/dev/null; then
+  status=0
+  _externals_run_with_timeout "$timeout_seconds" \
+    git -C "$skill_dir" fetch --quiet origin 2>/dev/null || status=$?
+  if (( status != 0 )); then
+    if (( status == 142 )); then
+      externals_warn "timed out fetching updates for $slug"
+      return 1
+    fi
     # gh fallback: re-clone the cache dir (it's disposable)
     tmp_dir="$(mktemp -d)"
     if _externals_gh_clone "$url" "$tmp_dir"; then
@@ -189,6 +225,10 @@ externals_inject_actions() {
     # Relative source path from repo root (for the build stage).
     local rel_source=".local/external/$slug"
     [[ -n "$sub_path" ]] && rel_source="$rel_source/$sub_path"
+    if [[ ! -e "$repo_root/$rel_source" ]]; then
+      externals_warn "missing fetched path for $name — skipping injection"
+      continue
+    fi
     local target_path="$skills_base/$name"
     local component_id="external/$name"
 

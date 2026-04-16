@@ -2,6 +2,9 @@
 
 This is the canonical terminal handoff artifact for all `/plan` front halves.
 It is the frozen state of the constraint packet bus at the point of execution handoff.
+During an active file-backed run, the live packet should be kept at `.constraint-packet.md`
+in the current working directory. Read it at the start of every step, overwrite it
+once at the end of every step, and reuse the same file on reopen or re-entry.
 
 ---
 
@@ -26,6 +29,8 @@ It is the frozen state of the constraint packet bus at the point of execution ha
 ## Phase C — Atomize
 
 - `actionable_requirements`:
+- `ari_dependency_graph`:
+- `route_to_ari_mapping`:
 
 ## Phase D — Critique
 
@@ -74,6 +79,8 @@ It is the frozen state of the constraint packet bus at the point of execution ha
 - `iteration` starts at 0. Increment before re-entering the lifecycle on any reopen.
 - `delta_from_prior` is empty on iteration 0. On re-entry, record what changed from
   the prior frozen packet so the history stays traceable.
+- Reopen or re-entry must continue in the same `.constraint-packet.md` file. Do not
+  delete it, replace it with a new packet path, or restart from a blank copy.
 - `request_invariant`, `focus`, and `non_goals` come from step A and stay stable unless
   a named reopen changes them.
 - `code_assembly_schema` must be operational, not narrative. It should say how the

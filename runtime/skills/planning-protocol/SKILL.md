@@ -24,12 +24,14 @@ Use this skill only for `/plan` workflows. Design goal: the closed-loop structur
 - Optional probe behavior owns F–G in `plan-h`; if probe behavior is unavailable, the planner may run those steps without changing their rules.
 - The human approves freeze at H.
 - Keep one evolving constraint packet from step A onward; do not reconstruct the packet from scratch at the end.
+- Persist that evolving packet in one workspace-local file: `.constraint-packet.md` in the current working directory of the `/plan` run. This file is the live `constraint_packet` and must be reused throughout the lifecycle rather than replaced with per-step snapshots.
 - When ownership moves to another role, hand off through the current packet and the step's required inputs rather than hidden conversational memory.
 
 ## Output Rules
 
 - Emit the required artifact fields for the active mode.
 - Use the templates in `assets/` to keep the review surface stable.
+- Follow the file-backed operating rule in `references/lifecycle.md`: every step reads `.constraint-packet.md` first and overwrites it once at step end before any handoff or stop.
 - Keep field names stable across lifecycle notes, packet templates, and final outputs so another agent can continue from the packet without reinterpreting it.
 - Do not perform broad implementation while planning.
 - Keep the task chain derived from the surviving ARIs; do not invent execution tasks independently.
