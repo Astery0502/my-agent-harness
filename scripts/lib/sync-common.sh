@@ -436,13 +436,27 @@ sync_deploy() {
       local action_count
       action_count="$(jq 'length' <<<"$actions")"
       local i=0
+      local deployed_dir_targets=""
       while (( i < action_count )); do
         local target_path
         target_path="$(jq -r ".[$i].target" <<<"$actions")"
         local source_path="$build_root/$target_path"
         local dest_path="$target_root/$target_path"
 
-        if [[ -e "$dest_path" ]]; then
+        # Skip backup if this target is a sub-path of a directory already deployed
+        # by an earlier action in this sync (the parent dir copy already laid it down).
+        local covered=0
+        if [[ -n "$deployed_dir_targets" ]]; then
+          while IFS= read -r dir_target; do
+            [[ -z "$dir_target" ]] && continue
+            if [[ "$target_path" == "$dir_target"/* ]]; then
+              covered=1
+              break
+            fi
+          done <<< "$deployed_dir_targets"
+        fi
+
+        if [[ -e "$dest_path" && $covered -eq 0 ]]; then
           if [[ -z "$backup_root" ]]; then
             local ts
             ts="$(date -u +"%Y%m%dT%H%M%SZ")"
@@ -473,6 +487,8 @@ sync_deploy() {
           fi
           rm -rf "$dest_path"
           mv "$tmp" "$dest_path"
+          deployed_dir_targets="${deployed_dir_targets:+$deployed_dir_targets
+}$target_path"
         else
           sync_fail "built target path missing: $target_path"
         fi
