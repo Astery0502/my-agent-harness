@@ -50,10 +50,9 @@ The test: Every changed line should trace directly to the user's request.
 
 - Use English for reasoning, code, comments, commit messages, and all working text.
 - Keep internal thinking and intermediate work in English only.
-- In the final user-facing output, provide one complete English block and one complete Chinese block for the descriptive response.
+- In the final user-facing output, provide one complete English block followed by one complete Chinese block. Translate all user-facing content — including tables, lists, and structured plan sections — not just the summary.
 - Do not translate line by line or alternate languages within the same list or paragraph.
-- Do not translate only the summary; this rule applies to the full final descriptive response.
-- Translate only user-facing descriptive text, not code, identifiers, commands, paths, filenames, or other technical literals.
+- Only omit from translation: inline code, file paths, identifiers, and command literals.
 
 ---
 
