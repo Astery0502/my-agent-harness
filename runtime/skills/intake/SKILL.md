@@ -57,29 +57,20 @@ Goal: <what the user is trying to achieve>
 Underlying problem: <if distinct from stated goal; omit if same>
 Scope: <object of study and boundaries>
 Ambiguity: <informational unknowns — Phase 2 proceeds regardless; omit if none>
-Blocking: <unknowns that make Phase 2 speculative — omit if none>
+Blocking: <unknowns that would leave Phase 2's retrieval sketch and handoff empty; omit if none>
 ```
 
-`Blocking` vs `Ambiguity`: an unknown is blocking if, without resolving it, Phase 2's
-Retrieval sketch would have no concrete search seeds or the Handoff fields would be
-guesses. Everything else is informational.
+Then:
+- If no `Blocking` field: ask "Does this capture your intent? Correct anything before I continue."
+- If `Blocking` is present: ask specifically for the minimum information needed to resolve the blocking items. Do not ask about `Ambiguity` items.
 
-Then ask:
-- If no `Blocking` field: "Does this capture your intent? Correct anything before I continue."
-- If `Blocking` present: "Does this capture your intent? **Unresolved blocking items will
-  make Phase 2 speculative.** Resolve them for a useful work frame, or confirm to proceed
-  anyway."
-
-Wait for the user's response. Incorporate any corrections, then proceed to Phase 2.
+Wait for the user's response. Synthesize the original request and the user's response into a single richer problem statement. Re-derive the problem frame from scratch on this combined input — do not patch the prior frame field by field. Emit the re-derived frame (without a confirmation prompt), then proceed directly to Phase 2.
 
 ---
 
 ## Phase 2 — Work Frame
 
-If the user confirmed with unresolved `Blocking` items, open with:
-`Note: speculative — [restate unresolved blocking items]. Resolve for a concrete frame.`
-
-Then emit the work frame:
+After the user confirms, emit this block:
 
 ```
 Work mode: <understand | inspect | modify | debug | simulate | derive | compare | verify | ...>
@@ -107,12 +98,13 @@ Then **hard stop**.
 
 ## Interpretation Policy
 
-When the request is ambiguous, choose the most reasonable bounded interpretation and
-proceed. Do not block on uncertainty. Do not over-resolve at preprocess stage.
+When the request is ambiguous, choose the most reasonable bounded interpretation. Record
+informational unknowns in `Ambiguity` and unknowns that would empty the retrieval sketch
+or handoff in `Blocking`. Do not over-resolve at preprocess stage.
 
-Record unknowns in the appropriate field: `Ambiguity` for informational gaps that do not
-prevent a useful Phase 2; `Blocking` for gaps where Phase 2's Retrieval sketch or Handoff
-would be noise without resolution.
+After the user responds, synthesize original request + response into one combined input
+and re-derive the frame from scratch. The re-derive replaces patching: it produces a
+coherent frame grounded in the fuller context, not a corrected version of the prior one.
 
 When the user asserts a specific cause or diagnosis — "there's a memory leak", "the race
 condition is in X", "the bug is on line 45" — treat the assertion as unverified unless
