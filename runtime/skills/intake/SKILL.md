@@ -56,10 +56,19 @@ REQUEST_TYPE: ...
 Goal: <what the user is trying to achieve>
 Underlying problem: <if distinct from stated goal; omit if same>
 Scope: <object of study and boundaries>
-Ambiguity: <major unknowns, named but not resolved; omit if none>
+Ambiguity: <informational unknowns — Phase 2 proceeds regardless; omit if none>
+Blocking: <unknowns that make Phase 2 speculative — omit if none>
 ```
 
-Then ask: "Does this capture your intent? Correct anything before I continue."
+`Blocking` vs `Ambiguity`: an unknown is blocking if, without resolving it, Phase 2's
+Retrieval sketch would have no concrete search seeds or the Handoff fields would be
+guesses. Everything else is informational.
+
+Then ask:
+- If no `Blocking` field: "Does this capture your intent? Correct anything before I continue."
+- If `Blocking` present: "Does this capture your intent? **Unresolved blocking items will
+  make Phase 2 speculative.** Resolve them for a useful work frame, or confirm to proceed
+  anyway."
 
 Wait for the user's response. Incorporate any corrections, then proceed to Phase 2.
 
@@ -67,7 +76,10 @@ Wait for the user's response. Incorporate any corrections, then proceed to Phase
 
 ## Phase 2 — Work Frame
 
-After the user confirms, emit this block:
+If the user confirmed with unresolved `Blocking` items, open with:
+`Note: speculative — [restate unresolved blocking items]. Resolve for a concrete frame.`
+
+Then emit the work frame:
 
 ```
 Work mode: <understand | inspect | modify | debug | simulate | derive | compare | verify | ...>
@@ -95,9 +107,12 @@ Then **hard stop**.
 
 ## Interpretation Policy
 
-When the request is ambiguous, choose the most reasonable bounded interpretation, record
-major ambiguity in the `Ambiguity` field, and proceed. Do not block on uncertainty.
-Do not over-resolve at preprocess stage.
+When the request is ambiguous, choose the most reasonable bounded interpretation and
+proceed. Do not block on uncertainty. Do not over-resolve at preprocess stage.
+
+Record unknowns in the appropriate field: `Ambiguity` for informational gaps that do not
+prevent a useful Phase 2; `Blocking` for gaps where Phase 2's Retrieval sketch or Handoff
+would be noise without resolution.
 
 When the user asserts a specific cause or diagnosis — "there's a memory leak", "the race
 condition is in X", "the bug is on line 45" — treat the assertion as unverified unless
