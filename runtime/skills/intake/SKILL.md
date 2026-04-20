@@ -64,7 +64,14 @@ Then:
 - If no `Blocking` field: ask "Does this capture your intent? Correct anything before I continue."
 - If `Blocking` is present: ask specifically for the minimum information needed to resolve the blocking items. Do not ask about `Ambiguity` items.
 
-Wait for the user's response. Synthesize the original request and the user's response into a single richer problem statement. Re-derive the problem frame from scratch on this combined input — do not patch the prior frame field by field. Emit the re-derived frame (without a confirmation prompt), then proceed directly to Phase 2.
+Wait for the user's response.
+
+- If the user explicitly confirms (e.g. "yes", "correct", "proceed") → move to Phase 2.
+- Otherwise: synthesize [original request + all user responses so far] into one richer
+  problem statement. Re-derive the frame from scratch on this combined input — do not
+  patch field by field. Emit the re-derived frame and repeat the ask step above.
+
+This is a loop. Phase 2 only runs on explicit confirmation.
 
 ---
 
@@ -102,9 +109,10 @@ When the request is ambiguous, choose the most reasonable bounded interpretation
 informational unknowns in `Ambiguity` and unknowns that would empty the retrieval sketch
 or handoff in `Blocking`. Do not over-resolve at preprocess stage.
 
-After the user responds, synthesize original request + response into one combined input
-and re-derive the frame from scratch. The re-derive replaces patching: it produces a
-coherent frame grounded in the fuller context, not a corrected version of the prior one.
+Phase 1 loops until explicit confirmation. Each iteration synthesizes all accumulated
+context (original request + every user response so far) into one combined input and
+re-derives the frame from scratch. The re-derive replaces patching — the result is a
+coherent frame grounded in the full context, not a corrected version of the prior one.
 
 When the user asserts a specific cause or diagnosis — "there's a memory leak", "the race
 condition is in X", "the bug is on line 45" — treat the assertion as unverified unless
