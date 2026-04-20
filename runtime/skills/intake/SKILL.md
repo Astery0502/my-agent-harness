@@ -47,22 +47,56 @@ Its job is translation only, not execution. Do not plan. Do not code. Do not rou
 
 ## Phase 1 — Problem Frame
 
+### Perspective Calibration
+
+Derived from `REQUEST_TYPE` once the frame is built. Applies only to clarifying questions — not to the frame itself.
+
+| REQUEST_TYPE | Lens | Blocking if absent |
+|---|---|---|
+| `CODING` | `engineer` | runtime/env, constraints (perf, size, compat), failure signature, scope/boundaries |
+| `SCIENCE` | `researcher` | hypothesis, evidence quality, baseline/control, success criterion, methodology |
+| `SCIENCE_TO_CODING` | `both — researcher first` | research question and evidence first; then reproducibility, output format, simulation fidelity |
+| `MIXED` | `both` | identify sub-parts as science vs coding; sequence researcher probes before engineer probes |
+
+Any item in the active Lens row that is absent or unverified in the request is a blocking unknown. The active `Lens` is emitted in the Phase 1 block so the user can correct a misclassification before Phase 2.
+
+### Blocking Derivation
+
+`Blocking` items come from three sources, checked in order of severity:
+
+**1. REQUEST_ISSUES flags** — most severe; corrupt output direction regardless of frame completeness:
+- `WRONG_ASSUMPTION`: Phase 2 retrieval and routing point at the wrong target
+- `CONTRADICTORY`: Phase 2 output would be incoherent regardless of completeness
+- `GOAL_METHOD_MIXED` when the real goal cannot be inferred: route hint and retrieval sketch address the method, not the problem
+
+**2. Structural viability** — type-independent; Phase 2 fields cannot be populated:
+- Object of change or study unknown
+- Success criterion absent and non-inferrable (Work mode cannot be set)
+- Scope so unbounded that retrieval has no search region
+
+**3. Lens criteria** — domain-specific; items in the active Lens row of Perspective Calibration that are absent or unverified.
+
+Collect items from all three sources. If source 1 or 2 fires, resolve those before Lens criteria — a Phase 2 output built on a corrupt foundation is worse than an incomplete one.
+
+---
+
 Read the raw request. Emit this block, then pause:
 
 ```
 REQUEST_ISSUES: [...]        ← omit field entirely if none
 REQUEST_TYPE: ...
+Lens: <engineer | researcher | both — researcher first | both>
 
 Goal: <what the user is trying to achieve>
 Underlying problem: <if distinct from stated goal; omit if same>
 Scope: <object of study and boundaries>
 Ambiguity: <informational unknowns — Phase 2 proceeds regardless; omit if none>
-Blocking: <unknowns that would leave Phase 2's retrieval sketch and handoff empty; omit if none>
+Blocking: <from Blocking Derivation — sources 1, 2, 3 in order; omit if none>
 ```
 
 Then:
-- If no `Blocking` field: ask "Does this capture your intent? Correct anything before I continue."
-- If `Blocking` is present: ask specifically for the minimum information needed to resolve the blocking items. Do not ask about `Ambiguity` items.
+- If no `Blocking` field: ask "Does this capture your intent, including the Lens? Correct anything before I continue."
+- If `Blocking` is present: ask specifically for the minimum information needed to resolve the blocking items, framed from the active `Lens` — apply the blocking criteria from Perspective Calibration. Do not ask about `Ambiguity` items.
 
 Wait for the user's response.
 
@@ -77,9 +111,13 @@ This is a loop. Phase 2 only runs on explicit confirmation.
 
 ## Phase 2 — Work Frame
 
-After the user confirms, emit this block:
+After the user confirms, emit the confirmed Phase 1 block verbatim (labeled), then emit the Work Frame block:
 
 ```
+--- Confirmed Problem Frame ---
+<echo the final confirmed Phase 1 block as-is>
+
+--- Work Frame ---
 Work mode: <understand | inspect | modify | debug | simulate | derive | compare | verify | ...>
 Execution posture: <immediate | science-first | context-first>
 Likely artifacts: <source files | configs | notebooks | papers | test outputs | ...>
@@ -106,8 +144,8 @@ Then **hard stop**.
 ## Interpretation Policy
 
 When the request is ambiguous, choose the most reasonable bounded interpretation. Record
-informational unknowns in `Ambiguity` and unknowns that would empty the retrieval sketch
-or handoff in `Blocking`. Do not over-resolve at preprocess stage.
+informational unknowns in `Ambiguity` and blocking unknowns (per Blocking Derivation) in
+`Blocking`. Do not over-resolve at preprocess stage.
 
 Phase 1 loops until explicit confirmation. Each iteration synthesizes all accumulated
 context (original request + every user response so far) into one combined input and
