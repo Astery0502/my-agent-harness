@@ -8,6 +8,17 @@ setup_nexus_test_repo
 
 assert_nexus_scaffold_state "$NEXUS_PROJECT" fresh
 
+mkdir -p "$NEXUS_PROJECT/.nexus"
+printf 'unrelated\n' > "$NEXUS_PROJECT/.nexus/local-note.txt"
+assert_nexus_scaffold_state "$NEXUS_PROJECT" partial
+run_nexus_install "$NEXUS_PROJECT" >/dev/null
+assert_nexus_scaffold_state "$NEXUS_PROJECT" partial
+assert_file_contains "$NEXUS_PROJECT/.nexus/local-note.txt" "unrelated"
+run_nexus_install "$NEXUS_PROJECT" --confirm >/dev/null
+assert_nexus_scaffold_state "$NEXUS_PROJECT" complete
+assert_file_contains "$NEXUS_PROJECT/.nexus/local-note.txt" "unrelated"
+rm -rf "$NEXUS_PROJECT/.nexus"
+
 run_nexus_install "$NEXUS_PROJECT" >/dev/null
 assert_nexus_scaffold_state "$NEXUS_PROJECT" complete
 assert_nexus_template_installed "$NEXUS_PROJECT"

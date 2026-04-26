@@ -32,7 +32,7 @@ def classify(template_nexus: Path, target: Path) -> tuple[str, list[Path], list[
         rel = template_to_target_rel(tf, template_nexus)
         dest = target / rel
         (existing if dest.exists() else missing).append(tf)
-    if not existing:
+    if not existing and not (target / ".nexus").is_dir():
         state = "fresh"
     elif not missing:
         state = "complete"

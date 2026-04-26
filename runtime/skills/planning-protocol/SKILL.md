@@ -1,6 +1,6 @@
 ---
 name: planning-protocol
-description: Use for `/plan` workflows that need the full planning lifecycle as an agent-operable constraint-solving protocol. Reach for it whenever the task needs stabilization, route expansion, ARI filtering, freeze/reopen discipline, or a reusable constraint packet for `plan-e` or `plan-h`, even if the user only asks for "a plan."
+description: Use only when the user explicitly invokes `/plan`, names `planning-protocol`, or directly asks for the full planning protocol/lifecycle. Do not trigger from inferred planning needs, vague requests for "a plan," stabilization, route expansion, ARI filtering, freeze/reopen discipline, or reusable constraint packets unless the user explicitly asks for this protocol.
 ---
 
 # Planning Protocol

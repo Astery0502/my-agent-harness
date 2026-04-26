@@ -10,6 +10,40 @@ description: >
 
 ## Goal
 
+Nexus maintains a local `.nexus/` route-and-impact map for a repository. It can scaffold the map, sync route discovery from the current file tree, transform human-authored impact notes into validated structured intents, and compile the final impact graph and route index.
+
+The central idea is evidence-preserving translation: user notes stay free-form, while the sync workflow admits only exact, validated structure into `.nexus/impact.intent.yaml`. If a note is not specific enough to translate without guessing, leave it pending and ask one clarifying question after the apply step.
+
+## Terms
+
+- Route: a file node discovered into `.nexus/routes.yaml` according to `.nexus/routes_rules.yaml`.
+- Route id: the exact `id` field for a route in `.nexus/routes.yaml`.
+- Impact note: a pending entry in `.nexus/impact-notes.yaml` written by the user in plain language.
+- Candidate intent: a temporary YAML proposal derived from prepared notes. It exists only long enough to pass through `validate_impact_intents.py`.
+- Validated intent: a candidate returned by the validator as accepted. Only these may be applied.
+- Compiled graph: `.nexus/impact.yaml`, generated from `.nexus/impact.intent.yaml`; never edit it manually.
+
+## Exactness rule
+
+Treat Step B as a precise translation task, not a summarization task.
+
+Use only evidence from:
+
+- the prepared note fields returned by `prepare_impact_notes.py`
+- `.nexus/routes.yaml`
+- `.nexus/impact-rules.yaml`
+- existing `.nexus/impact.intent.yaml`
+- repository files that you read to confirm a named symbol or file path
+
+An intent is exact enough only when every required field can be tied to explicit evidence:
+
+- `target`, `from`, and `to` must be canonical repo-relative file paths, optionally with `:symbol` only when the note or `symbol_hints` names that symbol and the symbol spelling is confirmed from the file.
+- `kind` and `type` must be exact rule ids from `.nexus/impact-rules.yaml`.
+- `route_ref` must be an exact route id from `.nexus/routes.yaml`; otherwise omit it.
+- `role` and `when` must preserve the user's meaning in the note without broadening it.
+
+When exactness is missing, produce no candidate for that note. Leaving a note in `pending` is correct; inventing structure is not.
+
 Run the status check first:
 
 ```bash
@@ -83,26 +117,56 @@ Read the YAML result and branch:
 - `status: skip` — skip Step B and continue to Step C
 - `status: ready` — continue Step B using only the returned `notes`
 
-When `status: ready`, derive candidate `node_intents` and `edge_intents` from the returned notes.
+When `status: ready`, derive candidate `node_intents` and `edge_intents` from the returned notes. Derive each candidate from one note at a time; do not merge two notes to manufacture a stronger claim. A single note may produce multiple intents only when each intent is directly supported by that note's `text`, `route_hint`, `file_hints`, `symbol_hints`, or `tags`.
+
+Translation checklist for each note:
+
+1. Identify explicit file or symbol references from the prepared note.
+2. Confirm referenced files against `.nexus/routes.yaml` or by reading the repository file when a symbol must be checked.
+3. Select the narrowest matching rule id from `.nexus/impact-rules.yaml`.
+4. Build only candidates whose required fields pass the exactness rule above.
+5. If multiple interpretations remain plausible, leave the note unresolved instead of choosing one.
+
+Candidate payload shape:
+
+```yaml
+node_intents:
+  - note_id: N-001
+    target: src/app.py:main
+    kind: route_binding
+    route_ref: src.app_py
+    role: optional_role
+edge_intents:
+  - note_id: N-001
+    from: config/settings.yaml
+    to: src/app.py:main
+    type: control_flow_gate
+    when: enabled == true
+```
+
+Omit optional fields when they are not clearly supported by the note. If no candidate intents can be derived, use empty lists for both top-level fields. The validator accepts only `node_intents` and `edge_intents`; unresolved notes are represented by omission, not by a third YAML field.
 
 The agent is responsible for semantic interpretation only:
 - classify each note as node intent, edge intent, or unresolved
 - resolve canonical repo-relative ids for `target`, `from`, and `to`
 - choose valid rule ids from `.nexus/impact-rules.yaml`
 - attach the originating `note_id` to every candidate intent derived from a note
-- optionally set `route_ref` when explicitly known
-- optionally set `role` or `when` when clearly supported by the note
+- optionally set `route_ref` only when it exactly matches an existing route id
+- optionally set `role` or `when` only when the note clearly supplies that meaning
 
 Do not:
-- invent missing targets, rules, routes, or conditions
+- infer targets, rules, routes, or conditions from project conventions alone
+- use a symbol name in `target` or `to` until the spelling has been confirmed
 - rewrite `.nexus/impact-notes.yaml` during candidate derivation
 - append raw candidate intents directly to `.nexus/impact.intent.yaml`
 
-Before any append, run the candidate batch through stdin:
+Before any append, pass the candidate batch to the validator through stdin:
 
 ```bash
-python .nexus/scripts/validate_impact_intents.py
+python .nexus/scripts/validate_impact_intents.py < /tmp/nexus-candidate-intents.yaml
 ```
+
+`/tmp/nexus-candidate-intents.yaml` is a temporary file containing the candidate payload above. Do not write candidate intents into `.nexus/impact.intent.yaml` directly.
 
 This helper is the intent admission gate. It validates candidate intents against:
 - `.nexus/impact-rules.yaml`
@@ -142,11 +206,13 @@ Validation constraints:
    - duplicates are filtered, not appended, and not treated as fatal errors
    - `note_id` is Step B provenance only and is not part of duplicate keys or persisted intents
 
-Then run:
+Then pass the full validator output to the apply helper through stdin, even when validation returned `status: skip`:
 
 ```bash
-python .nexus/scripts/apply_validated_intents.py
+python .nexus/scripts/apply_validated_intents.py < /tmp/nexus-validated-intents.yaml
 ```
+
+`/tmp/nexus-validated-intents.yaml` is a temporary file containing the complete YAML output from `validate_impact_intents.py`. The apply helper uses that status and payload to append validated intents and update note bookkeeping safely.
 
 Apply behavior:
 

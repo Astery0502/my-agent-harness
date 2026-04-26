@@ -42,10 +42,19 @@ python .nexus/scripts/sync_route_index.py
 
 ## Typical sync order
 
+Invoke `/nexus` via the agent for the full workflow. The agent will run route
+sync, prepare pending notes, translate exact notes into candidate intents,
+validate/apply accepted intents, compile the impact graph, and build the route
+index.
+
+If you are only refreshing generated artifacts manually after intents already
+exist, run:
+
 ```bash
 python .nexus/scripts/sync_routes.py
 python .nexus/scripts/sync_impact_graph.py
 python .nexus/scripts/sync_route_index.py
 ```
 
-Or invoke `/nexus` via the agent to run the full sync workflow.
+Do not append directly to `impact.intent.yaml`; use `/nexus` so candidates pass
+through validation and note bookkeeping.

@@ -161,7 +161,7 @@ def classify(template_root: Path, target_root: Path) -> str:
         rel = template_path.relative_to(template_root.parent)
         dest = target_root / rel
         (existing if dest.exists() else missing).append(template_path)
-    if not existing:
+    if not existing and not (target_root / '.nexus').is_dir():
         return 'fresh'
     if not missing:
         return 'complete'
@@ -184,6 +184,22 @@ run_nexus_install() {
   local target="$1"
   shift
   python3 "$NEXUS_SCRIPT_DIR/nexus_install.py" --target "$target" "$@"
+}
+
+run_prepare_impact_notes() {
+  (
+    cd "$1"
+    python3 .nexus/scripts/prepare_impact_notes.py
+  )
+}
+
+run_validate_impact_intents() {
+  local target="$1"
+  local payload="$2"
+  (
+    cd "$target"
+    printf '%s' "$payload" | python3 .nexus/scripts/validate_impact_intents.py
+  )
 }
 
 run_apply_validated_intents() {
