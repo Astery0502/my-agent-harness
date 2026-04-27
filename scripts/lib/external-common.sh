@@ -39,8 +39,62 @@ _externals_run_with_timeout() {
 # Derive a stable, filesystem-safe slug from a git URL for use as a cache dir name.
 _externals_url_to_slug() {
   local url="$1"
+  case "$url" in
+    [hH][tT][tT][pP]://*) url="${url#*://}" ;;
+    [hH][tT][tT][pP][sS]://*) url="${url#*://}" ;;
+  esac
   printf '%s' "$url" \
-    | sed 's|https\?://||; s|\.git$||; s|[^a-zA-Z0-9._-]|-|g; s|^-*||; s|--*|-|g'
+    | sed 's|\.git$||; s|[^a-zA-Z0-9._-]|-|g; s|^-*||; s|--*|-|g'
+}
+
+# Resolve a GitHub repository path (owner/repo) from an HTTPS GitHub URL.
+_externals_github_repo_path() {
+  local url="$1"
+  case "$url" in
+    https://github.com/*|http://github.com/*) ;;
+    *) return 1 ;;
+  esac
+
+  local path
+  path="${url#*://github.com/}"
+  path="${path%.git}"
+  local owner="${path%%/*}"
+  local repo_path="${path#*/}"
+  [[ "$repo_path" != "$path" ]] || return 1
+  local repo="${repo_path%%/*}"
+
+  [[ -n "$owner" && -n "$repo" ]] || return 1
+  printf '%s/%s\n' "$owner" "$repo"
+}
+
+_externals_resolve_latest_release_ref() {
+  local url="$1"
+  local repo_path
+  repo_path="$(_externals_github_repo_path "$url")" || return 1
+
+  local timeout_seconds tag
+  timeout_seconds="$(externals_fetch_timeout_seconds)"
+
+  if command -v gh >/dev/null 2>&1; then
+    tag="$(_externals_run_with_timeout "$timeout_seconds" \
+      gh api "repos/$repo_path/releases/latest" --jq .tag_name 2>/dev/null || true)"
+    if [[ -n "$tag" && "$tag" != "null" ]]; then
+      printf '%s\n' "$tag"
+      return 0
+    fi
+  fi
+
+  if command -v curl >/dev/null 2>&1; then
+    tag="$(curl -fsSL --max-time "$timeout_seconds" \
+      "https://api.github.com/repos/$repo_path/releases/latest" 2>/dev/null \
+      | jq -r '.tag_name // empty' 2>/dev/null || true)"
+    if [[ -n "$tag" && "$tag" != "null" ]]; then
+      printf '%s\n' "$tag"
+      return 0
+    fi
+  fi
+
+  return 1
 }
 
 # Clone a GitHub URL via the gh CLI into dest. Returns 1 if gh is unavailable,
@@ -49,11 +103,10 @@ _externals_gh_clone() {
   local url="$1"
   local dest="$2"
   command -v gh >/dev/null 2>&1 || return 1
-  [[ "$url" == *://github.com/* ]] || return 1
   local timeout_seconds
   timeout_seconds="$(externals_fetch_timeout_seconds)"
   local repo_path
-  repo_path="$(printf '%s' "$url" | sed 's|.*github\.com/||; s|\.git$||')"
+  repo_path="$(_externals_github_repo_path "$url")" || return 1
   _externals_run_with_timeout "$timeout_seconds" \
     gh repo clone "$repo_path" "$dest" -- --quiet 2>/dev/null
 }
@@ -71,6 +124,10 @@ _externals_fetch_one() {
   local status
   skill_dir="$(layout_external_skill_dir "$repo_root" "$slug")"
   timeout_seconds="$(externals_fetch_timeout_seconds)"
+
+  if [[ -d "$skill_dir/.git" ]] && ! git -C "$skill_dir" rev-parse --verify --quiet HEAD >/dev/null; then
+    rm -rf "$skill_dir"
+  fi
 
   if [[ ! -d "$skill_dir/.git" ]]; then
     status=0
@@ -96,7 +153,7 @@ _externals_fetch_one() {
     return 0
   fi
 
-  # Already cloned — pull for updates.
+  # Already cloned — fetch updates and move to the requested ref.
   local old_head
   old_head="$(git -C "$skill_dir" rev-parse HEAD 2>/dev/null)" || old_head=""
 
@@ -114,7 +171,10 @@ _externals_fetch_one() {
       rm -rf "$skill_dir"
       mv "$tmp_dir" "$skill_dir"
       if [[ -n "$ref" ]]; then
-        git -C "$skill_dir" checkout --quiet "$ref" 2>/dev/null || true
+        if ! git -C "$skill_dir" checkout --quiet "$ref" 2>/dev/null; then
+          externals_warn "failed to checkout ref '$ref' for $slug"
+          return 1
+        fi
       fi
       printf '%s\n' "external: updated: $slug"
       return 0
@@ -124,16 +184,30 @@ _externals_fetch_one() {
     return 1
   fi
 
-  local remote_ref
   if [[ -n "$ref" ]]; then
-    remote_ref="origin/$ref"
+    if git -C "$skill_dir" rev-parse --verify --quiet "refs/remotes/origin/$ref" >/dev/null; then
+      if ! git -C "$skill_dir" merge --quiet --ff-only "origin/$ref" 2>/dev/null; then
+        externals_warn "failed to fast-forward $slug (diverged?)"
+        return 1
+      fi
+    else
+      if ! git -C "$skill_dir" rev-parse --verify --quiet "refs/tags/$ref" >/dev/null; then
+        if ! _externals_run_with_timeout "$timeout_seconds" \
+          git -C "$skill_dir" fetch --quiet origin "refs/tags/$ref:refs/tags/$ref" 2>/dev/null; then
+          externals_warn "failed to fetch tag '$ref' for $slug"
+          return 1
+        fi
+      fi
+      if ! git -C "$skill_dir" checkout --quiet "$ref" 2>/dev/null; then
+        externals_warn "failed to checkout ref '$ref' for $slug"
+        return 1
+      fi
+    fi
   else
-    remote_ref="origin/HEAD"
-  fi
-
-  if ! git -C "$skill_dir" merge --quiet --ff-only "$remote_ref" 2>/dev/null; then
-    externals_warn "failed to fast-forward $slug (diverged?)"
-    return 1
+    if ! git -C "$skill_dir" merge --quiet --ff-only "origin/HEAD" 2>/dev/null; then
+      externals_warn "failed to fast-forward $slug (diverged?)"
+      return 1
+    fi
   fi
 
   local new_head
@@ -174,10 +248,21 @@ externals_fetch_all() {
 
     slug="$(_externals_url_to_slug "$url")"
 
-    if [[ "$seen_slugs" != *"|$slug|"* ]]; then
-      seen_slugs="$seen_slugs|$slug|"
-      _externals_fetch_one "$repo_root" "$slug" "$url" "$ref" || true
+    if [[ "$seen_slugs" == *"|$slug|"* ]]; then
+      i=$((i + 1))
+      continue
     fi
+
+    seen_slugs="$seen_slugs|$slug|"
+    if [[ "$ref" == "latest-release" ]]; then
+      if ! ref="$(_externals_resolve_latest_release_ref "$url")"; then
+        externals_warn "failed to resolve latest release for $url — skipping"
+        i=$((i + 1))
+        continue
+      fi
+    fi
+
+    _externals_fetch_one "$repo_root" "$slug" "$url" "$ref" || true
 
     i=$((i + 1))
   done

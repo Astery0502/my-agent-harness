@@ -30,6 +30,32 @@ setup_mock_remote() {
   rm -rf "$work_dir"
 }
 
+# Helper: create a local bare git repo with a tagged skill subdirectory.
+setup_mock_tagged_remote() {
+  local remote_dir="$1"
+  local tag="$2"
+  local skill_content="$3"
+
+  mkdir -p "$remote_dir"
+  git -C "$remote_dir" init --bare --quiet
+
+  local work_dir
+  work_dir="$(mktemp -d)"
+  git -C "$work_dir" init --quiet
+  git -C "$work_dir" config user.email "test@test"
+  git -C "$work_dir" config user.name "test"
+  mkdir -p "$work_dir/pkg/data"
+  printf '%s\n' "$skill_content" > "$work_dir/pkg/data/SKILL.md"
+  printf '# Root file (should not deploy)\n' > "$work_dir/root-file.md"
+  git -C "$work_dir" add .
+  git -C "$work_dir" commit --quiet -m "init"
+  git -C "$work_dir" tag "$tag"
+  git -C "$work_dir" remote add origin "$remote_dir"
+  git -C "$work_dir" push --quiet origin "$(git -C "$work_dir" rev-parse --abbrev-ref HEAD):main"
+  git -C "$work_dir" push --quiet origin "$tag"
+  rm -rf "$work_dir"
+}
+
 # Helper: add a commit to a bare remote via a temp work tree.
 add_commit_to_remote() {
   local remote_dir="$1"
@@ -199,7 +225,69 @@ assert_file_contains "$TEST_HOME/.claude/skills/sub-skill/SKILL.md" "Sub Skill"
 # Root-level file from the repo must not appear
 assert_file_missing "$TEST_HOME/.claude/skills/sub-skill/root-file.md"
 
-# --- 12. Two skills from the same repo share one clone ---
+# --- 12. tag ref with sub_path — repeated sync stays up-to-date ---
+
+MOCK_REMOTE_TAG="$TMP_DIR/mock-remote-tag.git"
+setup_mock_tagged_remote "$MOCK_REMOTE_TAG" "v1.2.3" "# Tagged Skill"
+
+printf '[{"name":"tag-skill","url":"%s","ref":"v1.2.3","sub_path":"pkg/data"}]\n' \
+  "$MOCK_REMOTE_TAG" > "$TEST_REPO/ops/external-skills.json"
+
+out="$(run_sync --platform claude)"
+assert_contains "$out" "external: fetched:"
+assert_contains "$out" "sync: installed"
+assert_file_exists "$TEST_HOME/.claude/skills/tag-skill/SKILL.md"
+assert_file_contains "$TEST_HOME/.claude/skills/tag-skill/SKILL.md" "Tagged Skill"
+assert_file_missing "$TEST_HOME/.claude/skills/tag-skill/root-file.md"
+
+out="$(run_sync --platform claude 2>&1)"
+assert_contains "$out" "external: up-to-date:"
+assert_contains "$out" "sync: up-to-date"
+assert_not_contains "$out" "external warning:"
+
+# --- 13. latest-release resolves through gh and installs the resolved tag sub_path ---
+
+MOCK_REMOTE_LATEST="$TMP_DIR/teng-lin-notebooklm-py.git"
+setup_mock_tagged_remote "$MOCK_REMOTE_LATEST" "v9.9.9" "# Latest Release Skill"
+rm -rf "$TEST_REPO/.local/external/github.com-teng-lin-notebooklm-py"
+
+FAKE_LATEST_BIN="$TMP_DIR/fake-latest-bin"
+mkdir -p "$FAKE_LATEST_BIN"
+cat > "$FAKE_LATEST_BIN/git" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\$1" == "clone" && "\$2" == "--quiet" && "\$3" == "https://github.com/teng-lin/notebooklm-py" ]]; then
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+EOF
+cat > "$FAKE_LATEST_BIN/gh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\$1" == "api" && "\$2" == "repos/teng-lin/notebooklm-py/releases/latest" ]]; then
+  printf 'v9.9.9\\n'
+  exit 0
+fi
+if [[ "\$1" == "repo" && "\$2" == "clone" && "\$3" == "teng-lin/notebooklm-py" ]]; then
+  dest="\$4"
+  "$REAL_GIT" clone --quiet "$MOCK_REMOTE_LATEST" "\$dest"
+  exit 0
+fi
+exit 1
+EOF
+chmod +x "$FAKE_LATEST_BIN/git" "$FAKE_LATEST_BIN/gh"
+
+printf '[{"name":"notebooklm","url":"https://github.com/teng-lin/notebooklm-py","ref":"latest-release","sub_path":"pkg/data"}]\n' \
+  > "$TEST_REPO/ops/external-skills.json"
+
+out="$(PATH="$FAKE_LATEST_BIN:$PATH" HOME="$TEST_HOME" ./scripts/sync.sh --platform claude 2>&1)"
+assert_contains "$out" "external: fetched: github.com-teng-lin-notebooklm-py"
+assert_contains "$out" "sync: installed"
+assert_file_exists "$TEST_HOME/.claude/skills/notebooklm/SKILL.md"
+assert_file_contains "$TEST_HOME/.claude/skills/notebooklm/SKILL.md" "Latest Release Skill"
+assert_file_missing "$TEST_HOME/.claude/skills/notebooklm/root-file.md"
+
+# --- 14. Two skills from the same repo share one clone ---
 
 MOCK_REMOTE_MULTI="$TMP_DIR/mock-remote-multi.git"
 mkdir -p "$MOCK_REMOTE_MULTI"
