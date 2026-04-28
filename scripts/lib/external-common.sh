@@ -20,6 +20,15 @@ externals_warn() {
   echo "external warning: $*" >&2
 }
 
+# Returns 0 (true) if the registry file is the empty JSON array [].
+# Mirrors the path returned by layout_external_registry_file.
+_externals_registry_is_empty() {
+  local registry_file="$1"
+  local _first_line
+  IFS= read -r _first_line < "$registry_file" 2>/dev/null || true
+  [[ "$_first_line" == '[]' ]]
+}
+
 externals_fetch_timeout_seconds() {
   local configured="${EXTERNALS_FETCH_TIMEOUT:-15}"
   if [[ "$configured" =~ ^[0-9]+$ ]] && (( configured > 0 )); then
@@ -224,10 +233,10 @@ _externals_fetch_one() {
 # Multiple entries sharing the same URL produce one clone (keyed by URL slug).
 externals_fetch_all() {
   local repo_root="$1"
-  local registry_file
-  registry_file="$(layout_external_registry_file "$repo_root")"
+  local registry_file="$repo_root/ops/external-skills.json"  # mirrors layout_external_registry_file
 
   [[ -f "$registry_file" ]] || return 0
+  _externals_registry_is_empty "$registry_file" && return 0
 
   local count
   count="$(jq 'length' "$registry_file" 2>/dev/null)" || return 0
@@ -273,10 +282,13 @@ externals_fetch_all() {
 externals_inject_actions() {
   local actions="$1"
   local repo_root="$2"
-  local registry_file
-  registry_file="$(layout_external_registry_file "$repo_root")"
+  local registry_file="$repo_root/ops/external-skills.json"  # mirrors layout_external_registry_file
 
   [[ -f "$registry_file" ]] || { printf '%s\n' "$actions"; return 0; }
+  if _externals_registry_is_empty "$registry_file"; then
+    printf '%s\n' "$actions"
+    return 0
+  fi
 
   local count
   count="$(jq 'length' "$registry_file" 2>/dev/null)" || { printf '%s\n' "$actions"; return 0; }

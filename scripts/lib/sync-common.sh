@@ -65,13 +65,12 @@ sync_path_digest() {
   if [[ -d "$path" ]]; then
     (
       cd "$path"
-      find . -mindepth 1 -print | LC_ALL=C sort | while IFS= read -r entry; do
-        if [[ -d "$entry" ]]; then
-          printf 'D %s\n' "$entry"
-        elif [[ -f "$entry" ]]; then
-          printf 'F %s %s\n' "$entry" "$(shasum -a 256 "$entry" | awk '{print $1}')"
-        fi
-      done
+      {
+        find . -mindepth 1 -type d -print | LC_ALL=C sort | sed 's/^/D /'
+        find . -mindepth 1 -type f -print0 \
+          | xargs -0 shasum -a 256 \
+          | awk '{print "F " $2 " " $1}'
+      } | LC_ALL=C sort -t' ' -k2
     ) | shasum -a 256 | awk '{print $1}'
     return
   fi
@@ -81,21 +80,65 @@ sync_path_digest() {
 sync_compute_actual_digests() {
   local target_root="$1"
   local component_targets_json="$2"
-  local actual_digests='{}'
 
-  while IFS= read -r cid; do
-    local comp_digest
-    comp_digest="$(
-      jq -r --arg c "$cid" '.[$c][]' <<<"$component_targets_json" | LC_ALL=C sort | while IFS= read -r tp; do
-        local td
-        td="$(sync_path_digest "$target_root/$tp")"
-        printf '%s %s\n' "$tp" "$td"
-      done | shasum -a 256 | awk '{print $1}'
-    )"
-    actual_digests="$(jq -c --arg k "$cid" --arg v "$comp_digest" '. + {($k): $v}' <<<"$actual_digests")"
-  done < <(jq -r 'keys[]' <<<"$component_targets_json" | LC_ALL=C sort)
+  # Single jq call: emit sorted "cid TAB target" lines grouped by component
+  local pairs
+  pairs="$(jq -r \
+    'to_entries | sort_by(.key)[] | .key as $k | (.value | sort[]) | [$k, .] | @tsv' \
+    <<<"$component_targets_json")"
 
-  printf '%s\n' "$actual_digests"
+  [[ -n "$pairs" ]] || { printf '{}'; return 0; }
+
+  # First pass: collect all FILE targets for a single batched shasum call.
+  # Directories are handled by sync_path_digest in the second pass.
+  local _batch_files=() _batch_idx=0
+  local _cid _tp
+  while IFS=$'\t' read -r _cid _tp; do
+    [[ -n "$_cid" ]] || continue
+    [[ -f "$target_root/$_tp" ]] && _batch_files+=("$target_root/$_tp")
+  done <<< "$pairs"
+
+  # Single shasum call for all files; store hashes positionally
+  local _file_hashes=()
+  if [[ ${#_batch_files[@]} -gt 0 ]]; then
+    local _h _rest
+    while IFS=' ' read -r _h _rest; do
+      _file_hashes+=("$_h")
+    done < <(shasum -a 256 "${_batch_files[@]}")
+  fi
+
+  # Second pass: build per-component hash inputs using cached file hashes
+  local prev_cid="" hash_input="" digest_lines="" comp_digest
+
+  while IFS=$'\t' read -r _cid _tp; do
+    [[ -n "$_cid" ]] || continue
+
+    if [[ "$_cid" != "$prev_cid" && -n "$prev_cid" ]]; then
+      { read -r comp_digest _; } < <(printf '%s' "$hash_input" | shasum -a 256)
+      digest_lines="${digest_lines}${prev_cid}"$'\t'"${comp_digest}"$'\n'
+      hash_input=""
+    fi
+    prev_cid="$_cid"
+
+    local _full="$target_root/$_tp"
+    local _td
+    if [[ -f "$_full" && "${_batch_files[$_batch_idx]}" == "$_full" ]]; then
+      _td="${_file_hashes[$_batch_idx]}"
+      _batch_idx=$((_batch_idx + 1))
+    else
+      _td="$(sync_path_digest "$_full")"
+    fi
+    hash_input="${hash_input}${_tp} ${_td}"$'\n'
+  done <<< "$pairs"
+
+  if [[ -n "$prev_cid" ]]; then
+    { read -r comp_digest _; } < <(printf '%s' "$hash_input" | shasum -a 256)
+    digest_lines="${digest_lines}${prev_cid}"$'\t'"${comp_digest}"
+  fi
+
+  # Single jq call: build compact JSON object from TSV lines
+  printf '%s\n' "$digest_lines" \
+    | jq -Rcn '[inputs | select(length > 0) | split("\t") | {key: .[0], value: .[1]}] | from_entries'
 }
 
 # --- Resolution ---
@@ -106,10 +149,6 @@ sync_resolve() {
   local profile="$3"
   local manifest_file
   local install_map_file
-  local profile_components
-  local component_ids
-  local actions='[]'
-  local seen_targets='[]'
 
   manifest_file="$(layout_manifest_file "$repo_root")"
   install_map_file="$(layout_install_map_for "$repo_root" "$platform")"
@@ -117,120 +156,157 @@ sync_resolve() {
   [[ -f "$manifest_file" ]] || sync_fail "manifest not found: $manifest_file"
   [[ -f "$install_map_file" ]] || sync_fail "install map not found for platform: $platform"
 
-  profile_components="$(jq -e --arg p "$profile" '.profiles[$p]' "$manifest_file" 2>/dev/null)" \
-    || sync_fail "unknown profile: $profile"
-  [[ "$profile_components" != "null" ]] || sync_fail "unknown profile: $profile"
+  # Single jq call: validate profile + emit component and path metadata.
+  # Line format:
+  #   PC\t<cid>           – profile component (validates it exists in .components)
+  #   CP\t<cid>\t<path>   – component source path (all components, for runtime-path detection)
+  #   AC\t<cid>           – all manifest component names (for install-map validation)
+  local manifest_meta
+  manifest_meta="$(jq -re --arg p "$profile" '
+    . as $m |
+    ($m.profiles[$p] // error("unknown profile: " + $p)) as $cids |
+    (
+      $cids[] |
+      if ($m.components[.] == null) then error("profile references unknown component: " + .) else . end |
+      "PC\t" + .
+    ),
+    (
+      $m.components | to_entries[] |
+      .key as $k | (.value.paths // [])[] | "CP\t" + $k + "\t" + .
+    ),
+    (
+      $m.components | keys[] | "AC\t" + .
+    )
+  ' "$manifest_file" 2>&1)" || sync_fail "$manifest_meta"
 
-  while IFS= read -r cid; do
-    jq -e --arg c "$cid" '.components[$c]' "$manifest_file" >/dev/null 2>&1 \
-      || sync_fail "profile references unknown component: $cid"
-  done < <(jq -r '.[]' <<<"$profile_components")
+  # Build lookup sets (space-padded strings) and component list from metadata
+  local cid_list=""             # newline-separated profile component IDs
+  local in_profile_set=" "     # " cid1 cid2 … " for O(1)-style membership checks
+  local all_comps_set=" "      # all manifest component names
+  local runtime_path_comps=" " # components that have at least one runtime/* path
 
-  component_ids="$profile_components"
+  local _type _a _b
+  while IFS=$'\t' read -r _type _a _b; do
+    case "$_type" in
+      PC)
+        cid_list="${cid_list}${_a}"$'\n'
+        in_profile_set="$in_profile_set$_a "
+        ;;
+      CP)
+        [[ "$_b" == runtime/* ]] && runtime_path_comps="$runtime_path_comps$_a "
+        ;;
+      AC)
+        all_comps_set="$all_comps_set$_a "
+        ;;
+    esac
+  done <<< "$manifest_meta"
 
-  local mapping_count
-  mapping_count="$(jq '.mappings | length' "$install_map_file")"
+  # Single jq call: emit all mapping fields as TSV.
+  # Copy line:   copy\t<target>\t<component>\t<source>
+  # Concat line: concat\t<target>\t<N>\t<comp1>\t<path1>[\t<comp2>\t<path2>…]
+  local mapping_lines
+  mapping_lines="$(jq -r '
+    .mappings[] |
+    if .mode == "concat" then
+      (["concat", .target, (.sources | length)] + [.sources[] | .component, .path]) | @tsv
+    else
+      ["copy", .target, .component, (.source // "")] | @tsv
+    end
+  ' "$install_map_file")"
 
-  local i=0
-  while (( i < mapping_count )); do
-    local mapping
-    mapping="$(jq -c ".mappings[$i]" "$install_map_file")"
-    local mode
-    mode="$(jq -r '.mode // "copy"' <<<"$mapping")"
-    local target_path
-    target_path="$(jq -r '.target' <<<"$mapping")"
+  local seen_targets=" "  # space-padded set of deployed target paths
+  local actions_inner=""  # comma-separated JSON action objects (no outer brackets)
 
-    sync_validate_relative_path "$target_path"
+  local _mode _target_path _rest
+  local _src_component _src_path _resolved _action_json
+  local _num_sources _sources_str _remain _j _src_json _fsrcs_inner
 
-    if jq -e --arg t "$target_path" 'index($t)' <<<"$seen_targets" >/dev/null 2>&1; then
-      sync_fail "multiple mappings resolve to the same target: $target_path"
+  while IFS=$'\t' read -r _mode _target_path _rest; do
+    [[ -n "$_mode" ]] || continue
+
+    sync_validate_relative_path "$_target_path"
+
+    if [[ "$seen_targets" == *" $_target_path "* ]]; then
+      sync_fail "multiple mappings resolve to the same target: $_target_path"
     fi
-    seen_targets="$(jq -c --arg t "$target_path" '. + [$t]' <<<"$seen_targets")"
+    seen_targets="$seen_targets$_target_path "
 
-    if [[ "$mode" == "concat" ]]; then
-      local filtered_sources='[]'
-      local source_count
-      source_count="$(jq '.sources | length' <<<"$mapping")"
-      local j=0
-      while (( j < source_count )); do
-        local src_component
-        src_component="$(jq -r ".sources[$j].component" <<<"$mapping")"
-        local src_path
-        src_path="$(jq -r ".sources[$j].path" <<<"$mapping")"
-
-        jq -e --arg c "$src_component" '.components[$c]' "$manifest_file" >/dev/null 2>&1 \
-          || sync_fail "install map references unknown component: $src_component"
-
-        if jq -e --arg c "$src_component" 'index($c)' <<<"$component_ids" >/dev/null 2>&1; then
-          sync_validate_relative_path "$src_path"
-          [[ -e "$repo_root/$src_path" ]] || sync_fail "source does not exist: $src_path"
-          local resolved
-          resolved="$(realpath "$repo_root/$src_path")"
-          sync_ensure_inside_repo "$repo_root" "$src_path" "$resolved"
-          filtered_sources="$(jq -c --arg c "$src_component" --arg p "$src_path" '. + [{"component": $c, "path": $p}]' <<<"$filtered_sources")"
+    if [[ "$_mode" == "concat" ]]; then
+      _num_sources="${_rest%%$'\t'*}"
+      _sources_str="${_rest#*$'\t'}"
+      _fsrcs_inner=""
+      _remain="$_sources_str"
+      _j=0
+      while (( _j < _num_sources )); do
+        _src_component="${_remain%%$'\t'*}"
+        _remain="${_remain#*$'\t'}"
+        if [[ "$_remain" == *$'\t'* ]]; then
+          _src_path="${_remain%%$'\t'*}"
+          _remain="${_remain#*$'\t'}"
+        else
+          _src_path="$_remain"
+          _remain=""
         fi
-        j=$((j + 1))
+        _j=$((_j + 1))
+
+        [[ "$all_comps_set" == *" $_src_component "* ]] \
+          || sync_fail "install map references unknown component: $_src_component"
+
+        if [[ "$in_profile_set" == *" $_src_component "* ]]; then
+          sync_validate_relative_path "$_src_path"
+          [[ -e "$repo_root/$_src_path" ]] || sync_fail "source does not exist: $_src_path"
+          _resolved="$(realpath "$repo_root/$_src_path")"
+          sync_ensure_inside_repo "$repo_root" "$_src_path" "$_resolved"
+          _src_json="{\"component\":\"$_src_component\",\"path\":\"$_src_path\"}"
+          if [[ -n "$_fsrcs_inner" ]]; then
+            _fsrcs_inner="$_fsrcs_inner,$_src_json"
+          else
+            _fsrcs_inner="$_src_json"
+          fi
+        fi
       done
 
-      local filtered_count
-      filtered_count="$(jq 'length' <<<"$filtered_sources")"
-      if (( filtered_count > 0 )); then
-        local action
-        action="$(jq -c --argjson srcs "$filtered_sources" --arg t "$target_path" \
-          '{sources: $srcs, target: $t, mode: "concat"}' <<<'{}')"
-        actions="$(jq -c --argjson a "$action" '. + [$a]' <<<"$actions")"
+      if [[ -n "$_fsrcs_inner" ]]; then
+        _action_json="{\"sources\":[$_fsrcs_inner],\"target\":\"$_target_path\",\"mode\":\"concat\"}"
+        if [[ -n "$actions_inner" ]]; then
+          actions_inner="$actions_inner,$_action_json"
+        else
+          actions_inner="$_action_json"
+        fi
       fi
     else
-      local src_component
-      src_component="$(jq -r '.component' <<<"$mapping")"
-      local src_path
-      src_path="$(jq -r '.source' <<<"$mapping")"
+      _src_component="${_rest%%$'\t'*}"
+      _src_path="${_rest#*$'\t'}"
 
-      # validate component exists in manifest
-      jq -e --arg c "$src_component" '.components[$c]' "$manifest_file" >/dev/null 2>&1 \
-        || sync_fail "install map references unknown component: $src_component"
+      [[ "$all_comps_set" == *" $_src_component "* ]] \
+        || sync_fail "install map references unknown component: $_src_component"
 
-      if jq -e --arg c "$src_component" 'index($c)' <<<"$component_ids" >/dev/null 2>&1; then
-        sync_validate_relative_path "$src_path"
-        [[ -e "$repo_root/$src_path" ]] || sync_fail "source does not exist: $src_path"
-        local resolved
-        resolved="$(realpath "$repo_root/$src_path")"
-        sync_ensure_inside_repo "$repo_root" "$src_path" "$resolved"
-
-        local action
-        action="$(jq -c --arg c "$src_component" --arg s "$src_path" --arg t "$target_path" \
-          '{component: $c, source: $s, target: $t}' <<<'{}')"
-        actions="$(jq -c --argjson a "$action" '. + [$a]' <<<"$actions")"
+      if [[ "$in_profile_set" == *" $_src_component "* ]]; then
+        sync_validate_relative_path "$_src_path"
+        [[ -e "$repo_root/$_src_path" ]] || sync_fail "source does not exist: $_src_path"
+        _resolved="$(realpath "$repo_root/$_src_path")"
+        sync_ensure_inside_repo "$repo_root" "$_src_path" "$_resolved"
+        _action_json="{\"component\":\"$_src_component\",\"source\":\"$_src_path\",\"target\":\"$_target_path\"}"
+        if [[ -n "$actions_inner" ]]; then
+          actions_inner="$actions_inner,$_action_json"
+        else
+          actions_inner="$_action_json"
+        fi
       fi
     fi
+  done <<< "$mapping_lines"
 
-    i=$((i + 1))
-  done
+  local actions="[$actions_inner]"
 
-  # validate every runtime component in the profile has at least one action
-  while IFS= read -r cid; do
-    local has_runtime_path=0
-    while IFS= read -r cpath; do
-      if [[ "$cpath" == runtime/* ]]; then
-        has_runtime_path=1
-        break
-      fi
-    done < <(jq -r --arg c "$cid" '.components[$c].paths[]' "$manifest_file")
-
-    (( has_runtime_path == 0 )) && continue
-
-    local found=0
-    if jq -e --arg c "$cid" '[.[] | select(.component == $c)] | length > 0' <<<"$actions" >/dev/null 2>&1; then
-      found=1
+  # Validate every runtime component in the profile appears in at least one action
+  local _cid
+  while IFS= read -r _cid; do
+    [[ -n "$_cid" ]] || continue
+    [[ "$runtime_path_comps" == *" $_cid "* ]] || continue
+    if [[ "$actions_inner" != *"\"component\":\"$_cid\""* ]]; then
+      sync_fail "selected component has no install-map target for platform: $_cid"
     fi
-    if (( found == 0 )); then
-      if jq -e --arg c "$cid" '[.[] | select(.mode == "concat") | .sources[] | select(.component == $c)] | length > 0' <<<"$actions" >/dev/null 2>&1; then
-        found=1
-      fi
-    fi
-
-    (( found == 1 )) || sync_fail "selected component has no install-map target for platform: $cid"
-  done < <(jq -r '.[]' <<<"$component_ids")
+  done <<< "$cid_list"
 
   printf '%s\n' "$actions"
 }
@@ -241,69 +317,69 @@ sync_build() {
   local repo_root="$1"
   local actions="$2"
   local build_root="$3"
-  local action_count
-  local i=0
 
   rm -rf "$build_root"
   mkdir -p "$build_root"
 
-  action_count="$(jq 'length' <<<"$actions")"
+  # Single jq call: emit all actions as TSV
+  # copy:   copy\t<target>\t<source>
+  # concat: concat\t<target>\t<N>\t<path1>[\t<path2>...]
+  local build_lines
+  build_lines="$(jq -r '.[] |
+    if .mode == "concat" then
+      ["concat", .target, (.sources | length)] + [.sources[].path] | @tsv
+    else
+      ["copy", .target, .source] | @tsv
+    end
+  ' <<<"$actions")"
 
-  while (( i < action_count )); do
-    local action
-    action="$(jq -c ".[$i]" <<<"$actions")"
-    local mode
-    mode="$(jq -r '.mode // "copy"' <<<"$action")"
-    local target_path
-    target_path="$(jq -r '.target' <<<"$action")"
-    local dest="$build_root/$target_path"
-    local dest_dir
-    dest_dir="$(dirname "$dest")"
+  local _mode _target_path _rest
+  while IFS=$'\t' read -r _mode _target_path _rest; do
+    [[ -n "$_mode" ]] || continue
+    local dest="$build_root/$_target_path"
+    local dest_dir="${dest%/*}"
 
-    case "$mode" in
-      concat)
-        mkdir -p "$dest_dir"
-        : > "$dest"
-        local first=1
-        local j=0
-        local src_count
-        src_count="$(jq '.sources | length' <<<"$action")"
-        while (( j < src_count )); do
-          local src_path
-          src_path="$(jq -r ".sources[$j].path" <<<"$action")"
-          local resolved_src
-          resolved_src="$(realpath "$repo_root/$src_path")"
-          [[ -f "$resolved_src" ]] || sync_fail "concat requires file sources: $src_path"
-          if (( first == 0 )); then
-            printf '\n\n' >> "$dest"
-          fi
-          cat "$resolved_src" >> "$dest"
-          first=0
-          j=$((j + 1))
-        done
-        ;;
-      *)
-        local src_path
-        src_path="$(jq -r '.source' <<<"$action")"
-        local resolved_src
-        resolved_src="$(realpath "$repo_root/$src_path")"
-        if [[ -f "$resolved_src" ]]; then
-          mkdir -p "$dest_dir"
-          cp "$resolved_src" "$dest"
-        elif [[ -d "$resolved_src" ]]; then
-          mkdir -p "$dest"
-          if find "$resolved_src" -mindepth 1 -print -quit | grep -q .; then
-            cp -R "$resolved_src"/. "$dest"/
-            rm -rf "$dest/.git"
-          fi
+    if [[ "$_mode" == "concat" ]]; then
+      local _num_sources _src_path _src _first=1 _j=0 _remain
+      _num_sources="${_rest%%$'\t'*}"
+      _remain="${_rest#*$'\t'}"
+      mkdir -p "$dest_dir"
+      : > "$dest"
+      while (( _j < _num_sources )); do
+        if [[ "$_remain" == *$'\t'* ]]; then
+          _src_path="${_remain%%$'\t'*}"
+          _remain="${_remain#*$'\t'}"
         else
-          sync_fail "unsupported source type: $src_path"
+          _src_path="$_remain"
+          _remain=""
         fi
-        ;;
-    esac
-
-    i=$((i + 1))
-  done
+        _j=$((_j + 1))
+        # Sources validated in sync_resolve (relative, within repo, no traversal)
+        _src="$repo_root/$_src_path"
+        [[ -f "$_src" ]] || sync_fail "concat requires file sources: $_src_path"
+        if (( _first == 0 )); then
+          printf '\n\n' >> "$dest"
+        fi
+        cat "$_src" >> "$dest"
+        _first=0
+      done
+    else
+      # Source validated in sync_resolve; use directly without realpath
+      local _src="$repo_root/$_rest"
+      if [[ -f "$_src" ]]; then
+        mkdir -p "$dest_dir"
+        cp "$_src" "$dest"
+      elif [[ -d "$_src" ]]; then
+        mkdir -p "$dest"
+        if find "$_src" -mindepth 1 -print -quit | grep -q .; then
+          cp -R "$_src"/. "$dest"/
+          rm -rf "$dest/.git"
+        fi
+      else
+        sync_fail "unsupported source type: $_rest"
+      fi
+    fi
+  done <<< "$build_lines"
 }
 
 # --- Digest ---
@@ -311,42 +387,21 @@ sync_build() {
 sync_digest() {
   local build_root="$1"
   local actions="$2"
-  local component_digests='{}'
-  local component_targets_map='{}'
-  local action_count
-  local i=0
 
-  action_count="$(jq 'length' <<<"$actions")"
+  # Single jq call: build component→targets map from all actions at once
+  local component_targets_map
+  component_targets_map="$(jq -c '
+    reduce .[] as $a (
+      {};
+      if $a.mode == "concat" then
+        reduce $a.sources[] as $s (.; .[$s.component] += [$a.target])
+      else
+        .[$a.component] += [$a.target]
+      end
+    )
+  ' <<<"$actions")"
 
-  while (( i < action_count )); do
-    local action
-    action="$(jq -c ".[$i]" <<<"$actions")"
-    local mode
-    mode="$(jq -r '.mode // "copy"' <<<"$action")"
-    local target_path
-    target_path="$(jq -r '.target' <<<"$action")"
-
-    if [[ "$mode" == "concat" ]]; then
-      local j=0
-      local src_count
-      src_count="$(jq '.sources | length' <<<"$action")"
-      while (( j < src_count )); do
-        local cid
-        cid="$(jq -r ".sources[$j].component" <<<"$action")"
-        component_targets_map="$(jq -c --arg c "$cid" --arg t "$target_path" \
-          'if .[$c] then .[$c] += [$t] else . + {($c): [$t]} end' <<<"$component_targets_map")"
-        j=$((j + 1))
-      done
-    else
-      local cid
-      cid="$(jq -r '.component' <<<"$action")"
-      component_targets_map="$(jq -c --arg c "$cid" --arg t "$target_path" \
-        'if .[$c] then .[$c] += [$t] else . + {($c): [$t]} end' <<<"$component_targets_map")"
-    fi
-
-    i=$((i + 1))
-  done
-
+  local component_digests
   component_digests="$(sync_compute_actual_digests "$build_root" "$component_targets_map")"
 
   jq -c --argjson digests "$component_digests" --argjson targets "$component_targets_map" \
@@ -402,7 +457,7 @@ sync_deploy() {
     staging)
       applied_count="$(jq 'length' <<<"$actions")"
       rm -rf "$target_root"
-      mkdir -p "$(dirname "$target_root")"
+      mkdir -p "${target_root%/*}"
       mv "$build_root" "$target_root"
       ;;
     live)
@@ -419,7 +474,7 @@ sync_deploy() {
             backup_root="$(layout_backup_root_for "$repo_root" "$platform" "$ts")"
             mkdir -p "$backup_root"
           fi
-          mkdir -p "$(dirname "$backup_root/$stale_target")"
+          mkdir -p "${backup_root}/${stale_target%/*}"
           rm -rf "$backup_root/$stale_target"
           cp -R "$target_root/$stale_target" "$backup_root/$stale_target"
           rm -rf "$target_root/$stale_target"
@@ -433,13 +488,9 @@ sync_deploy() {
           '$previous[] as $target | if ($current | index($target)) then empty else $target end'
       )
 
-      local action_count
-      action_count="$(jq 'length' <<<"$actions")"
-      local i=0
       local deployed_dir_targets=""
-      while (( i < action_count )); do
-        local target_path
-        target_path="$(jq -r ".[$i].target" <<<"$actions")"
+      while IFS= read -r target_path; do
+        [[ -n "$target_path" ]] || continue
         local source_path="$build_root/$target_path"
         local dest_path="$target_root/$target_path"
 
@@ -463,15 +514,13 @@ sync_deploy() {
             backup_root="$(layout_backup_root_for "$repo_root" "$platform" "$ts")"
             mkdir -p "$backup_root"
           fi
-          mkdir -p "$(dirname "$backup_root/$target_path")"
+          mkdir -p "${backup_root}/${target_path%/*}"
           rm -rf "$backup_root/$target_path"
           cp -R "$dest_path" "$backup_root/$target_path"
           backup_count=$((backup_count + 1))
         fi
 
-        local dest_dir
-        dest_dir="$(dirname "$dest_path")"
-        mkdir -p "$dest_dir"
+        mkdir -p "${dest_path%/*}"
 
         if [[ -f "$source_path" ]]; then
           local tmp
@@ -494,8 +543,7 @@ sync_deploy() {
         fi
 
         applied_count=$((applied_count + 1))
-        i=$((i + 1))
-      done
+      done < <(jq -r '.[].target' <<<"$actions")
       ;;
     *)
       sync_fail "unknown target: $target"
@@ -594,8 +642,6 @@ sync_print_dry_run_report() {
   local target_root="$4"
   local actions="$5"
   local digest_info="$6"
-  local action_count
-  action_count="$(jq 'length' <<<"$actions")"
 
   printf '%s\n' "dry-run: no changes applied"
   printf '%s\n' "platform: $platform"
@@ -604,20 +650,13 @@ sync_print_dry_run_report() {
   printf '%s\n' "target root: $target_root"
   printf '%s\n' "targets:"
 
-  local i=0
-  while (( i < action_count )); do
-    local target_path
-    target_path="$(jq -r ".[$i].target" <<<"$actions")"
-    local mode
-    mode="$(jq -r ".[$i].mode // \"copy\"" <<<"$actions")"
-    local component
-    if [[ "$mode" == "concat" ]]; then
-      component="$(jq -r ".[$i].sources | [.[].component] | unique | join(\",\")" <<<"$actions")"
-    else
-      component="$(jq -r ".[$i].component" <<<"$actions")"
-    fi
-    printf '  %s (%s) [%s]\n' "$target_path" "$component" "$mode"
-    i=$((i + 1))
+  # Single jq call: emit target, component(s), mode as TSV
+  jq -r '.[] |
+    (.mode // "copy") as $m |
+    (if $m == "concat" then [.sources[].component] | unique | join(",") else .component end) as $c |
+    [.target, $c, $m] | @tsv
+  ' <<<"$actions" | while IFS=$'\t' read -r _tp _comp _mode; do
+    printf '  %s (%s) [%s]\n' "$_tp" "$_comp" "$_mode"
   done
 
   printf '%s\n' "digests:"

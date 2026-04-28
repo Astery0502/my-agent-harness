@@ -96,10 +96,11 @@ layout_external_skill_dir() {
 
 layout_bootstrap_local_dirs() {
   local repo_root="$1"
+  # Inline paths to avoid 5 subshell forks; must stay in sync with layout functions above.
   mkdir -p \
-    "$(layout_install_state_target_dir "$repo_root" "live")" \
-    "$(layout_install_state_target_dir "$repo_root" "staging")" \
-    "$(layout_staging_dir "$repo_root")" \
-    "$(layout_backups_dir "$repo_root")" \
-    "$(layout_external_dir "$repo_root")"
+    "$repo_root/.local/install-state/live" \
+    "$repo_root/.local/install-state/staging" \
+    "$repo_root/.local/staging" \
+    "$repo_root/.local/backups" \
+    "$repo_root/.local/external"
 }
