@@ -35,7 +35,6 @@ for t in tests/ops/test-sync-*.sh; do bash "$t" & done; wait   # run all tests i
 - **Drift detection**: `scripts/lib/ops-common.sh` → `ops_compute_actual_digests` (reads state, no re-resolution)
 - **Layout/paths**: `scripts/lib/layout-common.sh`
 - **How to extend**: `docs/architecture.md` § Extension Points
-- **Component coordination**: `docs/reference/component-coordination.md`
 
 ## Working rules
 
