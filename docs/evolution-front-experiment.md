@@ -4,21 +4,14 @@ This document records the current state of the opt-in evolution-front workflow e
 
 ## Purpose
 
-The experiment compares two front-half workflows for weak prompts:
+The experiment keeps the opt-in `/evolution-plan` surface for weak prompts.
+The former baseline has been removed from active runtime content; historical comparison notes are archival only.
 
-- baseline `/plan`, which stays close to a TDD-oriented framing path
-- challenger `/evolution-plan`, which uses `clarify -> broaden and critique -> probe and freeze`
+The goal is narrow: preserve the evidence-chain-oriented front half for cases where a weak, incomplete, misleading, or solution-framed prompt would otherwise cause wasted downstream iteration.
 
-The goal is narrow: test whether the challenger reduces wasted downstream iteration when the prompt is weak, incomplete, misleading, or pointed at the wrong solution.
+## Current Shape
 
-## What Changes Between The Two Paths
-
-The shared downstream tail stays as similar as possible.
-
-The main difference is in the front half:
-
-- the baseline moves quickly toward task framing, examples, edge cases, and a shared `constraint packet`
-- the challenger treats the request as a hypothesis, builds an evidence chain, freezes only after a small probe-and-freeze step, and then emits the same shared downstream handoff
+`/evolution-plan` treats the request as a hypothesis, builds an evidence chain, freezes only after a small probe-and-freeze step, and emits a shared downstream handoff.
 
 The experiment is not primarily about:
 
@@ -33,8 +26,6 @@ The challenger keeps a white-box record through:
 - an `evidence chain record`
 - a smaller frozen `constraint packet`
 - explicit `reopen_trigger` recording before downstream work starts
-
-The baseline is intentionally lighter. The comparison is therefore about whether the challenger's extra front-half discipline pays for itself by reducing downstream correction cost.
 
 ## Method
 
