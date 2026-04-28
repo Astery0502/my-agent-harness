@@ -2,9 +2,7 @@
 name: agile-par
 description: >
   Create or modify amrvac.par for an AGILE (GPU AMR) simulation.
-  LOAD ONLY when the user explicitly invokes this skill by name (e.g. "/agile-par",
-  "use agile-par", "load agile-par"). Do NOT auto-load based on topic keywords such
-  as amrvac.par, par files, namelists, or simulation setup mentions alone.
+  LOAD ONLY when the user explicitly invokes /agile-par. Do not auto-load for any other reason.
 ---
 
 ## Inputs

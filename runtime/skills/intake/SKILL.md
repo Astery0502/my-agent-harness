@@ -2,13 +2,7 @@
 name: intake
 description: >
   Clarify non-coding or domain-level intent into a coding-facing downstream prompt.
-  Use when a request starts as science, research, analysis, workflow, product,
-  conceptual, or other domain intent and may need to become code, configuration,
-  notebooks, tests, simulations, or repository work. Do not use for ordinary coding
-  requests such as fix/debug/refactor/test/implement/inspect code; normal coding,
-  planning, or verification workflows handle those. Specifically skip intake when
-  the request already identifies an artifact or symptom, desired change or
-  investigation target, and safe next action.
+  LOAD ONLY when the user explicitly invokes /intake. Do not auto-load for any other reason.
 ---
 
 # Intake

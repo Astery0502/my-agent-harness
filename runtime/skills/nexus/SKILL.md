@@ -2,8 +2,7 @@
 name: nexus
 description: >
   Scaffold or sync the .nexus/ route-and-impact system.
-  Only invoke when the user explicitly asks — never trigger automatically.
-  Use when the user says: /nexus, "run nexus", "nexus setup", "nexus sync".
+  LOAD ONLY when the user explicitly invokes /nexus. Do not auto-load for any other reason.
 ---
 
 # Nexus
