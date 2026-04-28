@@ -45,12 +45,10 @@ and which surface to inspect first.
 
 ## Practical Examples
 
-- A planning prompt starts in `runtime/commands/plan.md`, dispatches to `runtime/agents/planner.md`, and should stay aligned with `runtime/rules/`.
-- A review flow starts in `runtime/commands/review.md`, dispatches to `runtime/agents/reviewer.md`, and often leans on verification skills.
+- A review flow starts in `runtime/commands/review.md`, dispatches to `runtime/agents/reviewer.md`, then filters the review packet through `runtime/agents/filter.md`.
 - Claude and Codex divergence should be explained under `runtime/platforms/`, not copied into shared runtime surfaces.
 - If sync includes or omits the wrong files, inspect `ops/manifest.json` and `runtime/platforms/*/install-map.json` before changing script logic.
 - To test whether a workflow's contracts are encoded correctly, run `tests/ops/test-workflow-content.sh`.
-- To run behavioral trials for the plan workflow, use prompts in `tests/workflow/plan-workflow/` and record results in `docs/plan-workflow-trials.md`.
 - To add behavioral tests for a new workflow, create `tests/workflow/<name>/` with trial files and `docs/<name>-trials.md` for results.
 
 ## Current Constraint

@@ -78,6 +78,30 @@ Options:
 
 Sync prints a human-readable summary on success, including the active target, target root, applied target count, and backup location when backups were created.
 
+## Checking for Skill Updates
+
+### External Skills (`ops/external-skills.json`)
+
+Skills listed in `ops/external-skills.json` are fetched from GitHub into `.local/external/` at sync time. To check whether any of them have updates available upstream:
+
+```bash
+./scripts/check-external-skills-update.sh
+```
+
+The script compares each skill's local cache state to its remote ref. Branch-tracked skills (e.g. `"ref": "main"`) report `up-to-date` or `update available` by comparing commit hashes. Release-pinned skills compare local and latest release tags. Run `sync.sh` to pull in any available updates.
+
+### NotebookLM Skill
+
+The NotebookLM skill is kept as harness-owned runtime content at `runtime/skills/notebooklm/SKILL.md`. It is not listed in `ops/external-skills.json`, so normal syncs and tests do not clone the full upstream `notebooklm-py` repository just to deploy the skill.
+
+The skill file records the upstream package version in an HTML comment near the top. To check whether PyPI has a newer package release:
+
+```bash
+./scripts/check-notebooklm-skill-update.sh
+```
+
+When an update is available, install the new `notebooklm-py` release, run `notebooklm skill install`, then copy the generated `SKILL.md` back into `runtime/skills/notebooklm/SKILL.md` so the harness remains the source of truth.
+
 ## Local Ops Workflow
 
 The harness has a local operations layer around live and staging installs:
@@ -120,11 +144,9 @@ Each test prints `PASS: <name>` on success or `FAIL: <reason>` on failure. A non
 
 ## Evolution-Front Experiment
 
-The repo also contains an opt-in workflow experiment for weak prompts.
+The repo previously carried a planning-command comparison surface. That baseline has been removed; no planning command is installed from this harness.
 
-- baseline `/plan` remains the default path
-- challenger `/evolution-plan` uses an evidence-chain-oriented front half before the same downstream tail
-- the experiment is still evidence-driven and not promoted into shared policy
+The remaining opt-in workflow experiment is `/evolution-plan` when its runtime files are present. The experiment is still evidence-driven and not promoted into shared policy.
 
 See [docs/evolution-front-experiment.md](docs/evolution-front-experiment.md) for the current method, completed trial matrix, and recommendation.
 

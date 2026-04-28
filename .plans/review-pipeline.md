@@ -10,7 +10,7 @@
 
 - `request_invariant`: Build a two-stage adversarial review pipeline — Stage 1 (reviewer) extracts constraints and finds problems; Stage 2 (filter) applies first-principles meta-critique to Stage 1's output — activated via `/review`.
 - `focus`: Agent behavioral definitions (reviewer.md rewrite, filter.md new file) and /review command orchestration wiring.
-- `non_goals`: Touching planning-protocol, critic, or planner agents. Runtime agent generation. Implementing domain-specific review logic. Changing sync/install machinery.
+- `non_goals`: Runtime agent generation. Implementing domain-specific review logic. Changing sync/install machinery.
 - `unknowns`: None that block execution.
 - `challenged_assumptions`:
   - "generates these two agents" → behavioral orchestration (dispatch to two agents sequentially), not runtime file creation.
@@ -73,7 +73,7 @@
 ## Step E: Complete
 
 - `chosen_route`: Route A (dual-agent, strict isolation)
-- `why_this_route`: Separation of cognitive operations is the core value. The filter's objectivity depends on not having seen the reviewer's reasoning chain. This mirrors the critic isolation principle already in use in the planning-protocol (critic.md § Isolation Rule). Consistent with existing agent pattern.
+- `why_this_route`: Separation of cognitive operations is the core value. The filter's objectivity depends on not having seen the reviewer's reasoning chain. Consistent with the review flow's isolation intent.
 
 - `task_chain`:
   1. Rewrite `runtime/agents/reviewer.md` — two-phase protocol (constraint extraction + adversarial review) with structured output packet definition.

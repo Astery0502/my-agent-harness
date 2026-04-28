@@ -24,7 +24,7 @@ tests/ops/test-sync-*.sh                 # integration tests
 ./scripts/doctor.sh [--target live|staging]
 ./scripts/repair.sh [--target live|staging]
 ./scripts/list-installed.sh [--target live|staging]
-for t in tests/ops/test-sync-*.sh; do bash "$t"; done   # run all tests
+for t in tests/ops/test-sync-*.sh; do bash "$t" & done; wait   # run all tests in parallel (~27s vs ~39s sequential)
 ```
 
 ## Where to look
@@ -43,3 +43,4 @@ for t in tests/ops/test-sync-*.sh; do bash "$t"; done   # run all tests
 - Keep docs aligned when changing sync behavior
 - New platforms auto-discover from `runtime/platforms/*/install-map.json`
 - Tests run in isolated temp dirs; never touch live environment
+- In `tests/`, avoid brittle explicit file-exists or raw text-exists assertions unless that path or text is the stable contract; prefer behavior, durable state, semantic structure, or state-transition assertions
