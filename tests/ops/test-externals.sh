@@ -3,7 +3,7 @@ set -euo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$TESTS_DIR/lib/test-helpers.sh"
-test_setup_repo
+test_setup_minimal_repo
 
 # Start with an empty registry so tests are independent of the source file's contents.
 printf '[]\n' > "$TEST_REPO/ops/external-skills.json"
@@ -97,14 +97,17 @@ out="$(run_sync --platform claude)"
 assert_contains "$out" "external: fetched:"
 assert_contains "$out" "sync: installed"
 
-# External skill deployed to live target
-assert_file_exists "$TEST_HOME/.claude/skills/mock-skill/SKILL.md"
+state_file="$TEST_REPO/.local/install-state/live/claude.json"
+assert_json_expr "$state_file" '.componentDigests | has("external/mock-skill")'
+assert_state_has_target "$state_file" "external/mock-skill" "skills/mock-skill"
+
+# External skill deployed to live target with fixture content.
 assert_file_contains "$TEST_HOME/.claude/skills/mock-skill/SKILL.md" "External Mock Skill"
 
-# Local skills are still present too
+# Local skills are still present too.
 assert_dir_exists "$TEST_HOME/.claude/skills"
 
-# Cache was created (keyed by URL slug, not skill name)
+# Cache was created for external source management.
 assert_dir_exists "$TEST_REPO/.local/external"
 
 # --- 3. Second sync — external is up-to-date, nothing redeploys ---
@@ -128,7 +131,7 @@ assert_file_exists "$TEST_HOME/.claude/skills/mock-skill/extra.md"
 
 state_file="$TEST_REPO/.local/install-state/live/claude.json"
 assert_json_expr "$state_file" '.componentDigests | has("external/mock-skill")'
-assert_json_expr "$state_file" '.componentTargets["external/mock-skill"] | contains(["skills/mock-skill"])'
+assert_state_has_target "$state_file" "external/mock-skill" "skills/mock-skill"
 
 # --- 6. Doctor reports healthy with external skill installed ---
 
@@ -221,6 +224,9 @@ assert_contains "$out" "sync: installed"
 # Only subdirectory content deployed
 assert_file_exists "$TEST_HOME/.claude/skills/sub-skill/SKILL.md"
 assert_file_contains "$TEST_HOME/.claude/skills/sub-skill/SKILL.md" "Sub Skill"
+state_file="$TEST_REPO/.local/install-state/live/claude.json"
+assert_json_expr "$state_file" '.componentDigests | has("external/sub-skill")'
+assert_state_has_target "$state_file" "external/sub-skill" "skills/sub-skill"
 
 # Root-level file from the repo must not appear
 assert_file_missing "$TEST_HOME/.claude/skills/sub-skill/root-file.md"
@@ -238,6 +244,9 @@ assert_contains "$out" "external: fetched:"
 assert_contains "$out" "sync: installed"
 assert_file_exists "$TEST_HOME/.claude/skills/tag-skill/SKILL.md"
 assert_file_contains "$TEST_HOME/.claude/skills/tag-skill/SKILL.md" "Tagged Skill"
+state_file="$TEST_REPO/.local/install-state/live/claude.json"
+assert_json_expr "$state_file" '.componentDigests | has("external/tag-skill")'
+assert_state_has_target "$state_file" "external/tag-skill" "skills/tag-skill"
 assert_file_missing "$TEST_HOME/.claude/skills/tag-skill/root-file.md"
 
 out="$(run_sync --platform claude 2>&1)"
@@ -247,16 +256,16 @@ assert_not_contains "$out" "external warning:"
 
 # --- 13. latest-release resolves through gh and installs the resolved tag sub_path ---
 
-MOCK_REMOTE_LATEST="$TMP_DIR/teng-lin-notebooklm-py.git"
+MOCK_REMOTE_LATEST="$TMP_DIR/mock-latest-release.git"
 setup_mock_tagged_remote "$MOCK_REMOTE_LATEST" "v9.9.9" "# Latest Release Skill"
-rm -rf "$TEST_REPO/.local/external/github.com-teng-lin-notebooklm-py"
+rm -rf "$TEST_REPO/.local/external/mock-latest-release"
 
 FAKE_LATEST_BIN="$TMP_DIR/fake-latest-bin"
 mkdir -p "$FAKE_LATEST_BIN"
 cat > "$FAKE_LATEST_BIN/git" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ "\$1" == "clone" && "\$2" == "--quiet" && "\$3" == "https://github.com/teng-lin/notebooklm-py" ]]; then
+if [[ "\$1" == "clone" && "\$2" == "--quiet" && "\$3" == "https://github.com/example/latest-release-skill" ]]; then
   exit 1
 fi
 exec "$REAL_GIT" "\$@"
@@ -264,11 +273,11 @@ EOF
 cat > "$FAKE_LATEST_BIN/gh" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ "\$1" == "api" && "\$2" == "repos/teng-lin/notebooklm-py/releases/latest" ]]; then
+if [[ "\$1" == "api" && "\$2" == "repos/example/latest-release-skill/releases/latest" ]]; then
   printf 'v9.9.9\\n'
   exit 0
 fi
-if [[ "\$1" == "repo" && "\$2" == "clone" && "\$3" == "teng-lin/notebooklm-py" ]]; then
+if [[ "\$1" == "repo" && "\$2" == "clone" && "\$3" == "example/latest-release-skill" ]]; then
   dest="\$4"
   "$REAL_GIT" clone --quiet "$MOCK_REMOTE_LATEST" "\$dest"
   exit 0
@@ -277,15 +286,18 @@ exit 1
 EOF
 chmod +x "$FAKE_LATEST_BIN/git" "$FAKE_LATEST_BIN/gh"
 
-printf '[{"name":"notebooklm","url":"https://github.com/teng-lin/notebooklm-py","ref":"latest-release","sub_path":"pkg/data"}]\n' \
+printf '[{"name":"latest-release-skill","url":"https://github.com/example/latest-release-skill","ref":"latest-release","sub_path":"pkg/data"}]\n' \
   > "$TEST_REPO/ops/external-skills.json"
 
 out="$(PATH="$FAKE_LATEST_BIN:$PATH" HOME="$TEST_HOME" ./scripts/sync.sh --platform claude 2>&1)"
-assert_contains "$out" "external: fetched: github.com-teng-lin-notebooklm-py"
+assert_contains "$out" "external: fetched:"
 assert_contains "$out" "sync: installed"
-assert_file_exists "$TEST_HOME/.claude/skills/notebooklm/SKILL.md"
-assert_file_contains "$TEST_HOME/.claude/skills/notebooklm/SKILL.md" "Latest Release Skill"
-assert_file_missing "$TEST_HOME/.claude/skills/notebooklm/root-file.md"
+assert_file_exists "$TEST_HOME/.claude/skills/latest-release-skill/SKILL.md"
+assert_file_contains "$TEST_HOME/.claude/skills/latest-release-skill/SKILL.md" "Latest Release Skill"
+state_file="$TEST_REPO/.local/install-state/live/claude.json"
+assert_json_expr "$state_file" '.componentDigests | has("external/latest-release-skill")'
+assert_state_has_target "$state_file" "external/latest-release-skill" "skills/latest-release-skill"
+assert_file_missing "$TEST_HOME/.claude/skills/latest-release-skill/root-file.md"
 
 # --- 14. Two skills from the same repo share one clone ---
 
@@ -323,6 +335,11 @@ assert_file_exists "$TEST_HOME/.claude/skills/alpha/SKILL.md"
 assert_file_contains "$TEST_HOME/.claude/skills/alpha/SKILL.md" "Alpha"
 assert_file_exists "$TEST_HOME/.claude/skills/beta/SKILL.md"
 assert_file_contains "$TEST_HOME/.claude/skills/beta/SKILL.md" "Beta"
+state_file="$TEST_REPO/.local/install-state/live/claude.json"
+assert_json_expr "$state_file" '.componentDigests | has("external/alpha")'
+assert_json_expr "$state_file" '.componentDigests | has("external/beta")'
+assert_state_has_target "$state_file" "external/alpha" "skills/alpha"
+assert_state_has_target "$state_file" "external/beta" "skills/beta"
 
 # Only one new clone directory created for the shared URL (two skills, one repo)
 after_clone_count="$(find "$TEST_REPO/.local/external" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"

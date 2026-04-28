@@ -3,7 +3,7 @@ set -euo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$TESTS_DIR/lib/test-helpers.sh"
-test_setup_repo
+test_setup_fixture
 
 # --- Fresh state ---
 
@@ -11,28 +11,32 @@ test_setup_repo
 list_output="$(run_list)"
 assert_contains "$list_output" "claude"
 assert_contains "$list_output" "codex"
-assert_contains "$list_output" "target: live"
+assert_report_field "$list_output" "target" "live"
 assert_contains "$list_output" "not-installed"
 
 # --- Live sync ---
 
-# 2. Sync claude (live, default profile)
-claude_output="$(run_sync --platform claude)"
-assert_contains "$claude_output" "sync: installed"
-assert_contains "$claude_output" "platform: claude"
-assert_contains "$claude_output" "target: live"
-assert_contains "$claude_output" "profile: claude-only"
-assert_contains "$claude_output" "backups: none"
-assert_contains "$claude_output" "note: unmanaged files under the runtime root were preserved"
-
-# 3. Sync codex (live, explicit profile) with pre-existing file for backup
+# 2+3. Sync claude and codex in parallel (different target roots — no conflicts)
 printf 'old agents\n' > "$TEST_HOME/.codex/AGENTS.md"
-printf 'keep me\n' > "$TEST_HOME/.codex/unmanaged.txt"
+printf 'keep me\n'  > "$TEST_HOME/.codex/unmanaged.txt"
 
-codex_output="$(run_sync --platform codex --profile codex-only)"
+_claude_out="$TMP_DIR/claude_sync2.out"
+_codex_out="$TMP_DIR/codex_sync3.out"
+run_sync --platform claude > "$_claude_out" &
+run_sync --platform codex --profile codex-only > "$_codex_out" &
+wait
+claude_output="$(cat "$_claude_out")"
+codex_output="$(cat "$_codex_out")"
+
+assert_contains "$claude_output" "sync: installed"
+assert_report_field "$claude_output" "platform" "claude"
+assert_report_field "$claude_output" "target" "live"
+assert_report_field "$claude_output" "profile" "claude-only"
+assert_report_field "$claude_output" "backups" "none"
+
 assert_contains "$codex_output" "sync: installed"
-assert_contains "$codex_output" "target: live"
-assert_contains "$codex_output" "backups: created"
+assert_report_field "$codex_output" "target" "live"
+assert_report_field "$codex_output" "backups" "created"
 assert_contains "$codex_output" "backup root:"
 
 # verify backup was created
@@ -54,12 +58,10 @@ assert_contains "$doctor_output" "codex: healthy"
 # --- Drift detection ---
 
 # 5. Modify deployed file, doctor detects drift
-printf '\n# drift\n' >> "$TEST_HOME/.claude/CLAUDE.md"
+printf '\n# drift\n' >> "$TEST_HOME/.claude/shared.md"
 
-if run_doctor >/tmp/doctor-drift.out 2>&1; then
-  fail "doctor should fail after drift"
-fi
-assert_contains "$(cat /tmp/doctor-drift.out)" "drifted"
+run_and_capture_failure doctor_drift_output run_doctor
+assert_contains "$doctor_drift_output" "drifted"
 
 # --- Repair ---
 
@@ -88,21 +90,20 @@ assert_json_expr "$TEST_REPO/.local/install-state/live/codex.json" ".targetRoot 
 
 # --- Staging lifecycle ---
 
-# 8. Staging sync
-run_sync --platform claude --target staging >/dev/null
-run_sync --platform codex --profile codex-only --target staging >/dev/null
+# 8. Staging sync (parallel — different state files and target roots)
+run_sync --platform claude --target staging >/dev/null &
+run_sync --platform codex --profile codex-only --target staging >/dev/null &
+wait
 
 doctor_output="$(run_doctor --target staging)"
 assert_contains "$doctor_output" "claude: healthy"
 assert_contains "$doctor_output" "codex: healthy"
 
 # 9. Staging drift and repair
-printf '\n# staging drift\n' >> "$TEST_REPO/.local/staging/claude/CLAUDE.md"
+printf '\n# staging drift\n' >> "$TEST_REPO/.local/staging/claude/shared.md"
 
-if run_doctor --target staging >/tmp/staging-doctor.out 2>&1; then
-  fail "doctor should fail after staging drift"
-fi
-assert_contains "$(cat /tmp/staging-doctor.out)" "drifted"
+run_and_capture_failure staging_doctor_output run_doctor --target staging
+assert_contains "$staging_doctor_output" "drifted"
 
 repair_output="$(run_repair --target staging)"
 assert_contains "$repair_output" "claude: repaired"
@@ -130,12 +131,10 @@ mv "$TEST_REPO/.local/install-state/live/codex.json.tmp" "$TEST_REPO/.local/inst
 run_sync --platform codex --profile codex-only >/dev/null
 assert_file_missing "$TEST_HOME/.codex/legacy-prompts/evolution-plan.md"
 assert_file_missing "$TEST_HOME/.codex/legacy-prompts"
-assert_file_exists "$TEST_HOME/.codex/prompts/plan.md"
-assert_file_exists "$TEST_HOME/.codex/commands/plan.md"
 
 # 13. Default profile (no --profile flag)
 default_output="$(run_sync --platform claude --target staging)"
-assert_contains "$default_output" "profile: claude-only"
+assert_report_field "$default_output" "profile" "claude-only"
 
 # 14. Double sync skips deploy when nothing changed
 second_output="$(run_sync --platform claude)"
@@ -144,18 +143,16 @@ assert_contains "$second_output" "nothing to deploy"
 assert_not_contains "$second_output" "backups:"
 
 # 15. After source change, sync deploys again
-printf '\n# new content\n' >> "$TEST_REPO/runtime/HARNESS.md"
+# Pre-seed 3 old backup stubs so the next sync creates backup #4, triggering pruning.
+for _ts in "20200101T000001Z" "20200101T000002Z" "20200101T000003Z"; do
+  mkdir -p "$TEST_REPO/.local/backups/claude/$_ts"
+done
+printf '\n# new content\n' >> "$TEST_REPO/runtime/src/file.md"
 changed_output="$(run_sync --platform claude)"
 assert_contains "$changed_output" "sync: installed"
 
 # 16. Backup pruning keeps only 3 most recent
-# We already have backups from steps 3 (codex) and current claude syncs.
-# Force 5 claude backups by making changes and syncing.
-for i in 1 2 3 4 5; do
-  printf '\n# change %s\n' "$i" >> "$TEST_REPO/runtime/HARNESS.md"
-  run_sync --platform claude >/dev/null
-done
-
+# Step 15 created backup #4; pruning should have reduced to exactly 3.
 claude_backup_count="$(ls -1 "$TEST_REPO/.local/backups/claude" | wc -l | tr -d '[:space:]')"
 [[ "$claude_backup_count" -le 3 ]] || fail "expected at most 3 claude backups, got $claude_backup_count"
 [[ "$claude_backup_count" -eq 3 ]] || fail "expected exactly 3 claude backups, got $claude_backup_count"

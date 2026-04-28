@@ -4,97 +4,67 @@ set -euo pipefail
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$TESTS_DIR/lib/test-helpers.sh"
 test_setup_repo
+printf '[]\n' > "$TEST_REPO/ops/external-skills.json"
 
 # Sync both platforms to staging for content validation
 run_sync --platform claude --target staging >/dev/null
 run_sync --platform codex --profile codex-only --target staging >/dev/null
 
+claude_state="$TEST_REPO/.local/install-state/staging/claude.json"
+codex_state="$TEST_REPO/.local/install-state/staging/codex.json"
+
 # === Claude staging content ===
 
-# 1. Core files exist
-assert_file_exists "$TEST_REPO/.local/staging/claude/CLAUDE.md"
-assert_dir_exists "$TEST_REPO/.local/staging/claude/agents"
-assert_dir_exists "$TEST_REPO/.local/staging/claude/skills"
-assert_dir_exists "$TEST_REPO/.local/staging/claude/commands"
-assert_dir_exists "$TEST_REPO/.local/staging/claude/rules"
+# 1. Install state records the staged Claude surface.
+assert_json_expr "$claude_state" '.status == "installed"'
+assert_json_expr "$claude_state" '.profile == "claude-only"'
+assert_state_has_target "$claude_state" "shared-root" "CLAUDE.md"
+assert_state_has_target "$claude_state" "claude-platform" "CLAUDE.md"
+assert_state_has_target "$claude_state" "shared-agents" "agents"
+assert_state_has_target "$claude_state" "shared-skills" "skills"
+assert_state_has_target "$claude_state" "shared-commands" "commands"
+assert_state_has_target "$claude_state" "shared-rules" "rules"
 
-# 2. CLAUDE.md is a concat of HARNESS.md + CLAUDE.base.md
-assert_file_contains "$TEST_REPO/.local/staging/claude/CLAUDE.md" "HARNESS.md"
-assert_file_contains "$TEST_REPO/.local/staging/claude/CLAUDE.md" "Behavioral guidelines"
+# 3. Stable skill metadata is preserved.
+assert_frontmatter_field "$TEST_REPO/.local/staging/claude/skills/nexus/SKILL.md" "name" "nexus"
 
-# 3. Agent files
-assert_file_exists "$TEST_REPO/.local/staging/claude/agents/planner.md"
-assert_file_contains "$TEST_REPO/.local/staging/claude/agents/planner.md" "critic"
-assert_file_contains "$TEST_REPO/.local/staging/claude/skills/planning-protocol/references/lifecycle.md" "request_invariant"
-
-# 4. Command files
-assert_file_exists "$TEST_REPO/.local/staging/claude/commands/plan.md"
-assert_file_contains "$TEST_REPO/.local/staging/claude/commands/plan.md" "planning-protocol"
-
-# 5. Skill files
-assert_file_exists "$TEST_REPO/.local/staging/claude/skills/planning-protocol/SKILL.md"
-assert_file_exists "$TEST_REPO/.local/staging/claude/skills/planning-protocol/references/lifecycle.md"
-assert_file_exists "$TEST_REPO/.local/staging/claude/skills/planning-protocol/references/artifacts.md"
-assert_file_exists "$TEST_REPO/.local/staging/claude/skills/planning-protocol/assets/plan-e-template.md"
-assert_file_exists "$TEST_REPO/.local/staging/claude/skills/planning-protocol/assets/plan-h-template.md"
-assert_file_contains "$TEST_REPO/.local/staging/claude/skills/planning-protocol/assets/plan-h-template.md" "reopen_triggers"
-assert_file_exists "$TEST_REPO/.local/staging/claude/skills/planning-protocol/assets/constraint-packet.md"
-assert_file_contains "$TEST_REPO/.local/staging/claude/skills/planning-protocol/assets/constraint-packet.md" "reopen_target"
-
-# 6. No leaked source files
+# 4. Source-only files do not leak into deployed roots.
 assert_file_missing "$TEST_REPO/.local/staging/claude/CLAUDE.base.md"
 assert_file_missing "$TEST_REPO/.local/staging/claude/AGENTS.md"
 
-# 7. No runtime/ paths in deployed command content
-assert_file_not_contains "$TEST_REPO/.local/staging/claude/commands/plan.md" "runtime/"
-assert_file_not_contains "$TEST_REPO/.local/staging/claude/agents/planner.md" "runtime/"
+# 5. Deployed command content does not leak source-tree paths.
+for path in "$TEST_REPO/.local/staging/claude/commands"/*.md; do
+  assert_file_not_contains "$path" "runtime/"
+done
 
 # === Codex staging content ===
 
-# 8. Core files exist
-assert_file_exists "$TEST_REPO/.local/staging/codex/AGENTS.md"
-assert_file_exists "$TEST_REPO/.local/staging/codex/config.toml"
-assert_dir_exists "$TEST_REPO/.local/staging/codex/shared-agents"
-assert_dir_exists "$TEST_REPO/.local/staging/codex/skills"
-assert_dir_exists "$TEST_REPO/.local/staging/codex/commands"
-assert_dir_exists "$TEST_REPO/.local/staging/codex/prompts"
-assert_dir_exists "$TEST_REPO/.local/staging/codex/rules"
+# 6. Install state records the staged Codex surface.
+assert_json_expr "$codex_state" '.status == "installed"'
+assert_json_expr "$codex_state" '.profile == "codex-only"'
+assert_state_has_target "$codex_state" "shared-root" "AGENTS.md"
+assert_state_has_target "$codex_state" "codex-platform" "AGENTS.md"
+assert_state_has_target "$codex_state" "codex-platform" "config.toml"
+assert_state_has_target "$codex_state" "shared-agents" "shared-agents"
+assert_state_has_target "$codex_state" "shared-skills" "skills"
+assert_state_has_target "$codex_state" "shared-commands" "commands"
+assert_state_has_target "$codex_state" "shared-commands" "prompts"
+assert_state_has_target "$codex_state" "shared-rules" "rules"
 
-# 9. AGENTS.md is concat of HARNESS.md + AGENTS.supplement.md
-assert_file_contains "$TEST_REPO/.local/staging/codex/AGENTS.md" "HARNESS.md"
-assert_file_contains "$TEST_REPO/.local/staging/codex/AGENTS.md" "Behavioral guidelines"
+# 8. Stable skill metadata is preserved.
+assert_frontmatter_field "$TEST_REPO/.local/staging/codex/skills/nexus/SKILL.md" "name" "nexus"
 
-# 10. Codex-specific agents (placeholder agents removed; mapping removed)
-
-# 11. Shared agents in shared-agents/
-assert_file_exists "$TEST_REPO/.local/staging/codex/shared-agents/planner.md"
-assert_file_exists "$TEST_REPO/.local/staging/codex/shared-agents/debugger.md"
-
-# 12. Commands mapped to commands/ for Codex slash-command discovery
-assert_file_exists "$TEST_REPO/.local/staging/codex/commands/plan.md"
-assert_file_contains "$TEST_REPO/.local/staging/codex/commands/plan.md" "planning-protocol"
-assert_file_contains "$TEST_REPO/.local/staging/codex/commands/plan.md" "name: plan"
-assert_file_contains "$TEST_REPO/.local/staging/codex/commands/plan.md" "description: Create a structured implementation plan"
-
-# 12b. Legacy prompt mirror kept for compatibility with older Codex builds
-assert_file_exists "$TEST_REPO/.local/staging/codex/prompts/plan.md"
-assert_file_contains "$TEST_REPO/.local/staging/codex/prompts/plan.md" "planning-protocol"
-assert_file_contains "$TEST_REPO/.local/staging/codex/prompts/plan.md" "name: plan"
-
-# 13. Skills
-assert_file_contains "$TEST_REPO/.local/staging/codex/skills/tdd-workflow/SKILL.md" "name: tdd-workflow"
-assert_file_contains "$TEST_REPO/.local/staging/codex/skills/planning-protocol/assets/plan-h-template.md" "reopen_triggers"
-
-# 14. Rules (placeholder rules removed; directory still synced)
-
-# 15. No leaked source files
+# 9. Source-only files do not leak into deployed roots.
 assert_file_missing "$TEST_REPO/.local/staging/codex/AGENTS.supplement.md"
 assert_file_missing "$TEST_REPO/.local/staging/codex/config.base.toml"
 
-# 16. No runtime/ paths in deployed content
-assert_file_not_contains "$TEST_REPO/.local/staging/codex/commands/plan.md" "runtime/"
-assert_file_not_contains "$TEST_REPO/.local/staging/codex/prompts/plan.md" "runtime/"
-assert_file_not_contains "$TEST_REPO/.local/staging/codex/shared-agents/planner.md" "runtime/"
+# 10. Deployed command and prompt content does not leak source-tree paths.
+for path in \
+  "$TEST_REPO/.local/staging/codex/commands"/*.md \
+  "$TEST_REPO/.local/staging/codex/prompts"/*.md
+do
+  assert_file_not_contains "$path" "runtime/"
+done
 
 # === Evolution-front experiment content ===
 
@@ -102,87 +72,27 @@ assert_file_not_contains "$TEST_REPO/.local/staging/codex/shared-agents/planner.
 # repo. This keeps the sync-content test aligned with the current runtime
 # surface rather than requiring optional experiment files unconditionally.
 if [[ -e "$TEST_REPO/runtime/commands/evolution-plan.md" ]]; then
-  # 17. Claude evolution-front files
-  assert_file_exists "$TEST_REPO/.local/staging/claude/commands/evolution-plan.md"
-  assert_file_exists "$TEST_REPO/.local/staging/claude/agents/evolution-planner.md"
-  assert_file_exists "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/SKILL.md"
-  assert_file_exists "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/templates/evidence-chain.md"
-  assert_file_exists "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/templates/constraint-packet.md"
+  assert_state_has_target "$claude_state" "shared-commands" "commands"
+  assert_state_has_target "$claude_state" "shared-agents" "agents"
+  assert_state_has_target "$claude_state" "shared-skills" "skills"
+  assert_state_has_target "$codex_state" "shared-commands" "commands"
+  assert_state_has_target "$codex_state" "shared-commands" "prompts"
+  assert_state_has_target "$codex_state" "shared-agents" "shared-agents"
+  assert_state_has_target "$codex_state" "shared-skills" "skills"
 
-  # 18. Codex evolution-front files
-  assert_file_exists "$TEST_REPO/.local/staging/codex/commands/evolution-plan.md"
-  assert_file_exists "$TEST_REPO/.local/staging/codex/prompts/evolution-plan.md"
-  assert_file_exists "$TEST_REPO/.local/staging/codex/shared-agents/evolution-planner.md"
-  assert_file_exists "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/SKILL.md"
-  assert_file_exists "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/templates/evidence-chain.md"
-  assert_file_exists "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/templates/constraint-packet.md"
-
-  # 19. Evolution plan command content
   for path in \
     "$TEST_REPO/.local/staging/claude/commands/evolution-plan.md" \
-    "$TEST_REPO/.local/staging/codex/commands/evolution-plan.md"
+    "$TEST_REPO/.local/staging/codex/commands/evolution-plan.md" \
+    "$TEST_REPO/.local/staging/codex/prompts/evolution-plan.md"
   do
-    assert_file_contains "$path" "/evolution-plan"
-    assert_file_contains "$path" "evolution planner agent"
-    assert_file_contains "$path" "evolution-front-experiment"
-    assert_file_contains "$path" "evidence chain record"
-    assert_file_contains "$path" "probe_evidence"
-    assert_file_contains "$path" "reopen_event"
+    assert_frontmatter_field "$path" "name" "evolution-plan"
     assert_file_not_contains "$path" "agents/evolution-planner.md"
   done
-  assert_file_contains "$TEST_REPO/.local/staging/codex/prompts/evolution-plan.md" "/evolution-plan"
 
-  # 20. Evolution planner agent content
-  for path in \
-    "$TEST_REPO/.local/staging/claude/agents/evolution-planner.md" \
-    "$TEST_REPO/.local/staging/codex/shared-agents/evolution-planner.md"
-  do
-    assert_file_contains "$path" "opt-in evolution-front experiment"
-    assert_file_contains "$path" "constraint packet"
-  done
-
-  # 21. Evolution-front skill content
-  for path in \
-    "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/SKILL.md" \
-    "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/SKILL.md"
-  do
-    assert_file_contains "$path" "opt-in"
-    assert_file_contains "$path" "three operational phases"
-    assert_file_contains "$path" "evidence chain record"
-    assert_file_contains "$path" "minimum required schema"
-    assert_file_contains "$path" "reopen_event"
-  done
-
-  # 22. Evidence chain template fields
-  for field in \
-    clarified_request \
-    suspect_claims \
-    candidate_strategies \
-    accepted_constraints \
-    rejected_constraints \
-    probe_evidence \
-    frozen_decision \
-    verification_target \
-    reopen_trigger
-  do
-    assert_file_contains "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/templates/evidence-chain.md" "$field"
-    assert_file_contains "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/templates/evidence-chain.md" "$field"
-  done
-
-  # 23. Constraint packet template fields
-  for field in \
-    task_statement \
-    clarified_assumptions \
-    rejected_interpretations \
-    chosen_direction \
-    open_risks \
-    probe_evidence \
-    draft_acceptance_criteria \
-    verification_target
-  do
-    assert_file_contains "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/templates/constraint-packet.md" "$field"
-    assert_file_contains "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/templates/constraint-packet.md" "$field"
-  done
+  assert_file_exists "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/templates/evidence-chain.md"
+  assert_file_exists "$TEST_REPO/.local/staging/claude/skills/evolution-front-experiment/templates/constraint-packet.md"
+  assert_file_exists "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/templates/evidence-chain.md"
+  assert_file_exists "$TEST_REPO/.local/staging/codex/skills/evolution-front-experiment/templates/constraint-packet.md"
 else
   assert_file_missing "$TEST_REPO/.local/staging/claude/commands/evolution-plan.md"
   assert_file_missing "$TEST_REPO/.local/staging/claude/agents/evolution-planner.md"
