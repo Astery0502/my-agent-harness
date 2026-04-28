@@ -12,11 +12,6 @@
       "mode": "concat"
     },
     {
-      "component": "codex-platform",
-      "source": "runtime/platforms/codex/config.base.toml",
-      "target": "config.toml"
-    },
-    {
       "component": "shared-agents",
       "source": "runtime/agents",
       "target": "shared-agents"
