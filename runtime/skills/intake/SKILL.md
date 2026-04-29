@@ -47,6 +47,8 @@ Do not use intake for ordinary coding requests:
 - Verify a change or run checks
 - Choose between implementation routes for an already-coding task
 
+If the request has a partially-formed but identifiable artifact and an existing codebase to work in, prefer brainstorming. Use intake only when the artifact is unknown or the domain goal is pre-coding.
+
 If explicitly invoked on an ordinary coding request, say briefly that the request is already coding-facing and should proceed through normal coding/planning/verification instead. Do not run the full intake flow.
 
 ---
@@ -76,6 +78,8 @@ If explicitly invoked on an ordinary coding request, say briefly that the reques
 | `INCOMPLETE` | The premise lacks enough context to interpret |
 | `NONE` | No material premise is stated |
 
+Decision rule: if the premise is statable but lacks corroborating evidence, use `UNVERIFIED`; if the premise cannot be interpreted without more input from the user, use `INCOMPLETE`.
+
 **CODING_NEED** — pick one:
 
 | Label | Meaning |
@@ -103,7 +107,7 @@ Emit this block, then pause:
 REQUEST_ORIGIN: <SCIENCE | RESEARCH | ANALYSIS | WORKFLOW | PRODUCT | CONCEPTUAL | MIXED>
 
 Domain goal: <real-world/scientific/product/workflow/conceptual outcome>
-Object/process: <thing being studied, transformed, compared, automated, or decided>
+Object/process: <thing being studied, transformed, compared, automated, or decided; omit if no discrete object>
 User-stated premise: <claim, diagnosis, mechanism, or proposed method; omit if none>
 PREMISE_STATUS: <EVIDENCE_BACKED | ACCEPTED_AS_GIVEN | UNVERIFIED | CONTRADICTED | INCOMPLETE | NONE>
 Success evidence: <what observation/result would satisfy the domain goal>
@@ -120,7 +124,6 @@ A missing detail is blocking only if its answer would change at least one of:
 3. The required input
 4. The expected output
 5. The validation method
-6. The domain goal itself
 
 Do not mark ordinary implementation details as blocking. File locations, library choices, code architecture, and exact implementation route usually belong to project inspection or planning, not intake.
 
@@ -150,9 +153,10 @@ After confirmation, emit the confirmed Idea Frame verbatim, then translate it in
 
 --- Coding Translation ---
 CODING_NEED: <YES | NO | UNCERTAIN>
-Execution posture: <immediate | context-first | science-first | none>
+Execution posture: <`immediate` — enough context exists for downstream action | `context-first` — repo/data context must be inspected first | `science-first` — conceptual/methodological validity must be clarified first | `none` — CODING_NEED is NO>
 Computational target: <known target | project-dependent | unknown | none>
 Candidate artifact: <script | notebook | config | simulation setup | test harness | CLI | app feature | analysis pipeline | benchmark | document | undecided | none>
+Candidate artifact rationale: <why this artifact type, or why undecided>
 Required inputs: <data, parameters, examples, paper result, user workflow, logs, repo context, etc.>
 Expected outputs: <plot, table, metric, config, test result, feature behavior, report, reproduction, etc.>
 Validation method: <evidence that would show the coding work served the domain goal>
@@ -172,41 +176,11 @@ This is metadata only; do not invoke the suggested class.
 
 Downstream prompt:
 """
-<one concise prompt that a planning, retrieval, coding, or research workflow can act on; preserve the confirmed goal, scope, premise status, required context, known ambiguities, and validation evidence; do not include implementation steps>
+<one concise coding-facing prompt; preserve the confirmed goal, artifact type, premise status, required inputs/outputs, validation evidence, and project context needed; omit step-by-step implementation, tool calls, routing commands, and speculative architecture>
 """
 ```
 
 Then hard stop. Do not invoke the suggested downstream class; wait for the user or caller to choose the next workflow.
-
-### Execution posture rules
-
-- `immediate`: enough information exists for downstream action without more domain clarification.
-- `context-first`: repository, file, data, or project context must be inspected before planning or implementation.
-- `science-first`: conceptual, scientific, or methodological validity must be clarified before coding translation can be trusted.
-- `none`: `CODING_NEED` is `NO`, so no coding-facing downstream action is needed.
-
----
-
-## Downstream prompt requirements
-
-The downstream prompt is the main deliverable. It should be coding-facing but not a plan.
-
-Include:
-
-- The confirmed domain goal
-- The likely computational artifact, if known
-- Required inputs and expected outputs
-- Validation evidence
-- Project context that must be inspected before implementation, if project-dependent
-- Any unverified premise that downstream work must not silently accept as fact
-
-Avoid:
-
-- Step-by-step implementation plans
-- Tool calls or file searches
-- Routing commands
-- Speculative architecture choices
-- Generic next-action advice
 
 ---
 
