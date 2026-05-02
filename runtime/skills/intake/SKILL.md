@@ -1,59 +1,50 @@
 ---
 name: intake
 description: >
-  Clarify non-coding or domain-level intent into a coding-facing downstream prompt.
+  Use when a user brings a domain-level, scientific, research, analysis, workflow, product, or
+  conceptual goal that has not yet resolved into a known computational artifact.
   LOAD ONLY when the user explicitly invokes /intake. Do not auto-load for any other reason.
 ---
 
 # Intake
 
-## Role
+## Overview
 
-Intake is a domain-to-code bridge. It clarifies a user's idea before that idea becomes coding work.
+Intake is a domain-to-code bridge. It stabilizes a user's real-world intent before it becomes coding work, producing a confirmed idea frame and a coding-facing downstream prompt — not a plan, not execution.
 
-Its job is to translate from:
+## When to Use
 
-```text
-I want to understand / prove / compare / automate / simulate / decide something.
+```dot
+digraph intake_gate {
+    start  [label="Request received",                               shape=doublecircle];
+    q1     [label="Identifies artifact, desired change,\nsafe next action?", shape=diamond];
+    q2     [label="Partial artifact + existing codebase?",          shape=diamond];
+    normal [label="Normal coding flow",                             shape=box];
+    brain  [label="Use /brainstorming",                             shape=box];
+    run    [label="Run intake",                                     shape=box];
+
+    start -> q1;
+    q1 -> normal [label="yes"];
+    q1 -> q2     [label="no"];
+    q2 -> brain  [label="yes"];
+    q2 -> run    [label="no"];
+}
 ```
 
-into:
+**Good intake cases:**
+- Scientific, theoretical, or research intent → may become a simulation, notebook, or pipeline
+- Workflow or product intent where the computational target is not yet identified
+- Requests with a user-stated premise that should be validated before code changes
+- Conceptual or analytical intent where the artifact is unknown or unstable
 
-```text
-What computational artifact, input, output, validation method, and project context would serve that goal?
-```
-
-The product of this skill is a confirmed idea frame plus a coding-facing downstream prompt. It is not a plan and not execution.
-
----
-
-## Front-door gate
-
-Use this skill only when the request begins outside ordinary software-engineering work and may need to become software work. Skip intake when the request already identifies an artifact or symptom, desired change or investigation target, and safe next action.
-
-Good intake cases:
-
-- Science or research intent that may become a simulation, notebook, benchmark, or analysis pipeline
-- Product or workflow intent that may become a script, CLI, app feature, test harness, or automation
-- Conceptual or analytical intent where the computational target is not yet stable
-- Requests with a user-stated premise that should become a hypothesis before code is changed
-- Mixed domain/coding requests where the domain goal must be stabilized before planning or implementation
-
-Do not use intake for ordinary coding requests:
-
-- Fix/debug/refactor/test/implement code
+**Do not use for:**
+- Fix / debug / refactor / test / implement requests
 - Inspect a file, module, repository, or error
 - Add a feature with a stable software goal
-- Verify a change or run checks
-- Choose between implementation routes for an already-coding task
 
-If the request has a partially-formed but identifiable artifact and an existing codebase to work in, prefer brainstorming. Use intake only when the artifact is unknown or the domain goal is pre-coding.
+If explicitly invoked on an ordinary coding request, say briefly that it is already coding-facing and stop. Do not run the full flow.
 
-If explicitly invoked on an ordinary coding request, say briefly that the request is already coding-facing and should proceed through normal coding/planning/verification instead. Do not run the full intake flow.
-
----
-
-## Labels
+## Quick Reference — Labels
 
 **REQUEST_ORIGIN** — pick one:
 
@@ -67,85 +58,71 @@ If explicitly invoked on an ordinary coding request, say briefly that the reques
 | `CONCEPTUAL` | Idea exploration, taxonomy, decision framing, or explanation intent |
 | `MIXED` | Multiple origins are genuinely entangled |
 
-**PREMISE_STATUS** — pick one for any user-stated claim about cause, mechanism, or desired method:
+**PREMISE_STATUS** — pick one:
 
 | Label | Meaning |
 |---|---|
-| `EVIDENCE_BACKED` | Evidence is supplied or already established in the request |
-| `ACCEPTED_AS_GIVEN` | The premise is a user requirement or definition, not something to verify |
-| `UNVERIFIED` | The premise may be true but evidence has not been supplied |
-| `CONTRADICTED` | The premise conflicts with supplied evidence or established facts |
-| `INCOMPLETE` | The premise lacks enough context to interpret |
-| `NONE` | No material premise is stated |
+| `EVIDENCE_BACKED` | Evidence supplied or already established in the request |
+| `ACCEPTED_AS_GIVEN` | User requirement or definition; not to verify |
+| `UNVERIFIED` | May be true; no evidence supplied |
+| `CONTRADICTED` | Conflicts with supplied evidence or established facts |
+| `INCOMPLETE` | Lacks enough context to interpret |
+| `NONE` | No material premise stated |
 
-Decision rule: if the premise is statable but lacks corroborating evidence, use `UNVERIFIED`; if the premise cannot be interpreted without more input from the user, use `INCOMPLETE`.
+If the premise is statable but lacks corroborating evidence, use `UNVERIFIED`. If it cannot be interpreted without more user input, use `INCOMPLETE`.
 
 **CODING_NEED** — pick one:
 
 | Label | Meaning |
 |---|---|
-| `YES` | The confirmed idea likely needs code/config/notebook/tests/simulation/repo work |
-| `NO` | The confirmed idea is non-coding and should not be translated into coding work |
-| `UNCERTAIN` | Coding may or may not be needed; the next workflow must decide after context |
+| `YES` | Confirmed idea likely needs code/config/notebook/tests/simulation/repo work |
+| `NO` | Confirmed idea is non-coding |
+| `UNCERTAIN` | Coding may or may not be needed; next workflow must decide |
 
----
+## Implementation
 
-## Phase 1 — Idea Frame
+### Phase 1 — Idea Frame
 
-Clarify the domain/intention layer before discussing implementation. Ask:
+Ask: *What is the user actually trying to understand, prove, compare, automate, simulate, or decide?*
 
-```text
-What is the user actually trying to understand, prove, compare, automate, simulate, or decide?
-```
-
-Do not ask for files, libraries, architecture, or implementation route unless that information is necessary to stabilize the idea.
+Do not ask for files, libraries, architecture, or implementation route unless they are necessary to resolve a blocker (see blocking rule below).
 
 Emit this block, then pause:
 
 ```text
 --- Idea Frame ---
-REQUEST_ORIGIN: <SCIENCE | RESEARCH | ANALYSIS | WORKFLOW | PRODUCT | CONCEPTUAL | MIXED>
-
+REQUEST_ORIGIN: <label>
 Domain goal: <real-world/scientific/product/workflow/conceptual outcome>
-Object/process: <thing being studied, transformed, compared, automated, or decided; omit if no discrete object>
+Object/process: <thing being studied, transformed, compared, automated, or decided; omit if none>
 User-stated premise: <claim, diagnosis, mechanism, or proposed method; omit if none>
-PREMISE_STATUS: <EVIDENCE_BACKED | ACCEPTED_AS_GIVEN | UNVERIFIED | CONTRADICTED | INCOMPLETE | NONE>
+PREMISE_STATUS: <label>
 Success evidence: <what observation/result would satisfy the domain goal>
 Ambiguity: <useful non-blocking unknowns; omit if none>
-Blocking: <idea-level unknowns that must be answered before coding translation; omit if none>
+Blocking: <idea-level unknowns that must be resolved before coding translation; omit if none>
 ```
 
-### Blocking rule
-
-A missing detail is blocking only if its answer would change at least one of:
-
+**Blocking rule.** A missing detail is blocking only if its answer would change at least one of:
 1. Whether coding is needed at all
 2. The computational target
 3. The required input
 4. The expected output
 5. The validation method
 
-Do not mark ordinary implementation details as blocking. File locations, library choices, code architecture, and exact implementation route usually belong to project inspection or planning, not intake.
-
-Missing origin, premise, or coding-need label detail blocks only when its absence prevents forming a safe Phase 2 Work Frame. Otherwise preserve it as `Ambiguity`. Treat `CONTRADICTED` premises as blocking. Treat `UNVERIFIED` premises as non-blocking when they can be carried forward neutrally without accepting them as fact.
-
-Then:
+Implementation details (file paths, library choices, architecture) are never blocking. `CONTRADICTED` premises are always blocking. `UNVERIFIED` premises are non-blocking when they can be carried forward neutrally without being accepted as fact.
 
 - If `Blocking` is absent: ask `Does this capture your idea? Correct anything before I translate it into a coding-facing prompt.`
-- If `Blocking` is present: ask only for the minimum information needed to resolve those blockers. Do not ask about `Ambiguity` items.
+- If `Blocking` is present: ask only for what resolves those blockers. Do not ask about `Ambiguity` items.
 
 Wait for the user's response.
 
-- If the user explicitly confirms, move to Phase 2.
-- Otherwise, synthesize the original request plus all user responses so far into one richer idea statement. Re-derive the entire Idea Frame from scratch and repeat the ask step.
+- If the user explicitly confirms: move to Phase 2.
+- Otherwise: synthesize the original request plus all responses so far into one richer idea statement, re-derive the entire Idea Frame from scratch, and repeat the ask.
 
-Phase 2 only runs after explicit confirmation.
+Phase 2 runs only after explicit confirmation.
 
----
+### Phase 2 — Coding Translation
 
-## Phase 2 — Coding Translation
-
-After confirmation, emit the confirmed Idea Frame verbatim, then translate it into a coding-facing handoff. This translation may identify project context that must be inspected later, but intake itself does not inspect the project.
+Echo the confirmed Idea Frame verbatim, then emit:
 
 ```text
 --- Confirmed Idea Frame ---
@@ -166,7 +143,6 @@ Known non-blocking ambiguities:
 
 Project context needed before implementation:
 - <repo/project fact a downstream workflow should inspect; omit if none>
-- <repo/project fact a downstream workflow should inspect; omit if none>
 
 Open coding questions:
 - <implementation-facing question left for planning/inspection; omit if none>
@@ -180,16 +156,16 @@ Downstream prompt:
 """
 ```
 
-Then hard stop. Do not invoke the suggested downstream class; wait for the user or caller to choose the next workflow.
+Hard stop after emitting the Coding Translation. Do not invoke the suggested downstream class; wait for the user or caller to choose the next workflow.
 
----
+## Common Mistakes
 
-## Hard constraints
-
-- Do not generate a plan or task chain
-- Do not start coding or edit files
-- Do not perform retrieval, repository inspection, or file search
-- Do not execute routing to another workflow
-- Do not ask implementation-detail questions unless they affect the idea-to-code translation
-- Treat user diagnoses as unverified premises unless evidence is supplied
-- Hard stop after emitting the Coding Translation
+| Mistake | Correction |
+|---|---|
+| Running intake on an ordinary coding request | Say it is already coding-facing and stop; do not run the full flow. |
+| Asking about file paths, libraries, or architecture in Phase 1 | Those are never blocking — only ask what changes the five blocking criteria. |
+| Marking `UNVERIFIED` premises as blocking | Carry them forward neutrally; they do not block Phase 2. |
+| Treating `CONTRADICTED` premises as non-blocking | Contradicted premises always block Phase 2; surface the conflict explicitly. |
+| Moving to Phase 2 without explicit user confirmation | Synthesize all input and re-derive the Idea Frame; do not infer approval. |
+| Invoking a downstream workflow after Phase 2 output | Hard stop. Metadata only — do not route. |
+| Treating `INCOMPLETE` like `NONE` | `INCOMPLETE` is blocking; ask only what is needed to interpret the premise. |
