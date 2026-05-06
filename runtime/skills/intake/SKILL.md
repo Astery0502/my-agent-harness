@@ -1,8 +1,8 @@
 ---
 name: intake
 description: >
-  Use when a user brings a domain-level, scientific, research, analysis, workflow, product, or
-  conceptual goal that has not yet resolved into a known computational artifact.
+  Use when a user explicitly invokes /intake for a rough, unclear, under-structured,
+  or role-ambiguous request before any downstream work begins.
   LOAD ONLY when the user explicitly invokes /intake. Do not auto-load for any other reason.
 ---
 
@@ -10,162 +10,103 @@ description: >
 
 ## Overview
 
-Intake is a domain-to-code bridge. It stabilizes a user's real-world intent before it becomes coding work, producing a confirmed idea frame and a coding-facing downstream prompt — not a plan, not execution.
+Intake is prompt refinement before work begins. It turns a rough request into one stronger downstream prompt by identifying the work type, assigning a fitting agent role, preserving the user's intent, adding missing structure, and stopping.
+
+It improves the prompt; it does not solve execution. Do not implement, route, invoke another skill, create a plan, inspect code by default, or make changes.
 
 ## When to Use
 
-```dot
-digraph intake_gate {
-    start  [label="Request received",                               shape=doublecircle];
-    q1     [label="Identifies artifact, desired change,\nsafe next action?", shape=diamond];
-    q2     [label="Partial artifact + existing codebase?",          shape=diamond];
-    normal [label="Normal coding flow",                             shape=box];
-    brain  [label="Use /brainstorming",                             shape=box];
-    run    [label="Run intake",                                     shape=box];
+Use only when `/intake` is explicitly invoked and the request is:
 
-    start -> q1;
-    q1 -> normal [label="yes"];
-    q1 -> q2     [label="no"];
-    q2 -> brain  [label="yes"];
-    q2 -> run    [label="no"];
-}
-```
+- rough, unclear, or under-structured
+- missing role, output, constraints, or success criteria
+- mixing possible work types
+- not ready to hand to a downstream agent or workflow
 
-**Good intake cases:**
-- Scientific, theoretical, or research intent → may become a simulation, notebook, or pipeline
-- Workflow or product intent where the computational target is not yet identified
-- Requests with a user-stated premise that should be validated before code changes
-- Conceptual or analytical intent where the artifact is unknown or unstable
+Do not use for:
 
-**Do not use for:**
-- Fix / debug / refactor / test / implement requests
-- Inspect a file, module, repository, or error
-- Add a feature with a stable software goal
+- implementation, debugging, refactoring, testing, or review work
+- requests that already identify task, artifact, constraints, and success criteria
+- routing, planning, or execution decomposition
 
-If explicitly invoked on an ordinary coding request, say briefly that it is already coding-facing and stop. Do not run the full flow.
+If explicitly invoked on a request that is already clear, lightly polish the prompt and stop.
 
-## Quick Reference — Labels
+## Work Types And Roles
 
-**REQUEST_ORIGIN** — pick one:
+Pick one dominant `WORK_TYPE` and one concise `AGENT_ROLE`.
 
-| Label | Meaning |
+| `WORK_TYPE` | Default `AGENT_ROLE` |
 |---|---|
-| `SCIENCE` | Scientific, mathematical, theoretical, or simulation intent |
-| `RESEARCH` | Investigation, evidence gathering, comparison, or reproduction intent |
-| `ANALYSIS` | Data/log/result interpretation or measurement intent |
-| `WORKFLOW` | Manual process, operational flow, or automation intent |
-| `PRODUCT` | User-facing, stakeholder, UX, or product outcome intent |
-| `CONCEPTUAL` | Idea exploration, taxonomy, decision framing, or explanation intent |
-| `MIXED` | Multiple origins are genuinely entangled |
+| `coding` | Senior engineer |
+| `research` | Careful researcher |
+| `analysis` | Analyst |
+| `writing` | Editor |
+| `planning` | Planner |
+| `debugging` | Debugger |
+| `decision-framing` | Strategist |
 
-**PREMISE_STATUS** — pick one:
-
-| Label | Meaning |
-|---|---|
-| `EVIDENCE_BACKED` | Evidence supplied or already established in the request |
-| `ACCEPTED_AS_GIVEN` | User requirement or definition; not to verify |
-| `UNVERIFIED` | May be true; no evidence supplied |
-| `CONTRADICTED` | Conflicts with supplied evidence or established facts |
-| `INCOMPLETE` | Lacks enough context to interpret |
-| `NONE` | No material premise stated |
-
-If the premise is statable but lacks corroborating evidence, use `UNVERIFIED`. If it cannot be interpreted without more user input, use `INCOMPLETE`.
-
-**CODING_NEED** — pick one:
-
-| Label | Meaning |
-|---|---|
-| `YES` | Confirmed idea likely needs code/config/notebook/tests/simulation/repo work |
-| `NO` | Confirmed idea is non-coding |
-| `UNCERTAIN` | Coding may or may not be needed; next workflow must decide |
+If multiple work types are plausible, choose the dominant one and preserve the ambiguity in `Missing ingredients handled`. Do not expand the taxonomy unless the user explicitly asks.
 
 ## Implementation
 
-### Phase 1 — Idea Frame
+### Phase 1: Prompt Diagnosis
 
-Ask: *What is the user actually trying to understand, prove, compare, automate, simulate, or decide?*
+Read the user's request and classify:
 
-Do not ask for files, libraries, architecture, or implementation route unless they are necessary to resolve a blocker (see blocking rule below).
+- `WORK_TYPE`
+- `AGENT_ROLE`
+- user goal
+- target output
+- stated constraints
+- missing prompt ingredients
+- whether clarification is required
 
-Emit this block, then pause:
+Clarification should be rare. Ask one question only if the missing information would materially change the polished prompt. If clarification is required, ask the question and stop. After the user answers, rerun the diagnosis.
 
-```text
---- Idea Frame ---
-REQUEST_ORIGIN: <label>
-Domain goal: <real-world/scientific/product/workflow/conceptual outcome>
-Object/process: <thing being studied, transformed, compared, automated, or decided; omit if none>
-User-stated premise: <claim, diagnosis, mechanism, or proposed method; omit if none>
-PREMISE_STATUS: <label>
-Success evidence: <what observation/result would satisfy the domain goal>
-Ambiguity: <useful non-blocking unknowns; omit if none>
-Blocking: <idea-level unknowns that must be resolved before coding translation; omit if none>
-```
+If information is incomplete but usable, carry uncertainty forward.
 
-**Blocking rule.** A missing detail is blocking only if its answer would change at least one of:
-1. Whether coding is needed at all
-2. The computational target
-3. The required input
-4. The expected output
-5. The validation method
+### Phase 2: Prompt Polishing
 
-Implementation details (file paths, library choices, architecture) are never blocking. `CONTRADICTED` premises are always blocking. `UNVERIFIED` premises are non-blocking when they can be carried forward neutrally without being accepted as fact.
+Emit the diagnosis and one polished prompt.
 
-- If `Blocking` is absent: ask `Does this capture your idea? Correct anything before I translate it into a coding-facing prompt.`
-- If `Blocking` is present: ask only for what resolves those blockers. Do not ask about `Ambiguity` items.
+The polished prompt should include:
 
-Wait for the user's response.
+- role, task, and context
+- constraints and expected output
+- success criteria and important ambiguities
 
-- If the user explicitly confirms: move to Phase 2.
-- Otherwise: synthesize the original request plus all responses so far into one richer idea statement, re-derive the entire Idea Frame from scratch, and repeat the ask.
+The polished prompt must not include:
 
-Phase 2 runs only after explicit confirmation.
+- tool calls
+- step-by-step implementation
+- a forced next workflow or current-agent execution instructions
 
-### Phase 2 — Coding Translation
+Hard stop after output. Do not execute, route, invoke another skill, inspect files, or make code changes.
 
-Echo the confirmed Idea Frame verbatim, then emit:
+## Output Template
 
 ```text
---- Confirmed Idea Frame ---
-<echo the final confirmed Idea Frame as-is>
+--- Prompt Diagnosis ---
+WORK_TYPE: <coding | research | analysis | writing | planning | debugging | decision-framing>
+AGENT_ROLE: <one concise role>
+User goal: <goal>
+Target output: <artifact/result>
+Constraints: <stated constraints, or none>
+Missing ingredients handled: <assumptions or preserved ambiguities>
 
---- Coding Translation ---
-CODING_NEED: <YES | NO | UNCERTAIN>
-Execution posture: <`immediate` — enough context exists for downstream action | `context-first` — repo/data context must be inspected first | `science-first` — conceptual/methodological validity must be clarified first | `none` — CODING_NEED is NO>
-Computational target: <known target | project-dependent | unknown | none>
-Candidate artifact: <script | notebook | config | simulation setup | test harness | CLI | app feature | analysis pipeline | benchmark | document | undecided | none>
-Candidate artifact rationale: <why this artifact type, or why undecided>
-Required inputs: <data, parameters, examples, paper result, user workflow, logs, repo context, etc.>
-Expected outputs: <plot, table, metric, config, test result, feature behavior, report, reproduction, etc.>
-Validation method: <evidence that would show the coding work served the domain goal>
+--- Polished Prompt ---
+<one strong downstream prompt>
 
-Known non-blocking ambiguities:
-- <uncertainty downstream work should preserve; omit if none>
-
-Project context needed before implementation:
-- <repo/project fact a downstream workflow should inspect; omit if none>
-
-Open coding questions:
-- <implementation-facing question left for planning/inspection; omit if none>
-
-Suggested downstream class: <planning | retrieval/context | coding | research | none>
-This is metadata only; do not invoke the suggested class.
-
-Downstream prompt:
-"""
-<one concise coding-facing prompt; preserve the confirmed goal, artifact type, premise status, required inputs/outputs, validation evidence, and project context needed; omit step-by-step implementation, tool calls, routing commands, and speculative architecture>
-"""
+Stop here. Do not execute, route, invoke another skill, or make code changes.
 ```
-
-Hard stop after emitting the Coding Translation. Do not invoke the suggested downstream class; wait for the user or caller to choose the next workflow.
 
 ## Common Mistakes
 
 | Mistake | Correction |
 |---|---|
-| Running intake on an ordinary coding request | Say it is already coding-facing and stop; do not run the full flow. |
-| Asking about file paths, libraries, or architecture in Phase 1 | Those are never blocking — only ask what changes the five blocking criteria. |
-| Marking `UNVERIFIED` premises as blocking | Carry them forward neutrally; they do not block Phase 2. |
-| Treating `CONTRADICTED` premises as non-blocking | Contradicted premises always block Phase 2; surface the conflict explicitly. |
-| Moving to Phase 2 without explicit user confirmation | Synthesize all input and re-derive the Idea Frame; do not infer approval. |
-| Invoking a downstream workflow after Phase 2 output | Hard stop. Metadata only — do not route. |
-| Treating `INCOMPLETE` like `NONE` | `INCOMPLETE` is blocking; ask only what is needed to interpret the premise. |
+| Treating intake as execution prep with implementation steps | Produce a better prompt, not a plan or task list. |
+| Routing to another skill after polishing | Stop after the polished prompt; the user chooses what happens next. |
+| Asking broad discovery questions | Ask only one question when the answer would materially change the prompt. |
+| Expanding the work type taxonomy too early | Pick the dominant listed type and preserve ambiguity in the diagnosis. |
+| Inspecting files or code by default | Use only context the user supplied unless they ask for work outside intake. |
+| Writing a generic prompt that loses the user's wording | Preserve the user's intent, constraints, and uncertainty. |
