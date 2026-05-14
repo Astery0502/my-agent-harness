@@ -92,15 +92,15 @@ The script compares each skill's local cache state to its remote ref. Branch-tra
 
 ### NotebookLM Skill
 
-The NotebookLM skill is kept as harness-owned runtime content at `runtime/skills/notebooklm/SKILL.md`. It is not listed in `ops/external-skills.json`, so normal syncs and tests do not clone the full upstream `notebooklm-py` repository just to deploy the skill.
+The NotebookLM skill is fetched from the upstream `notebooklm-py` repository via `ops/external-skills.json`, pinned to the latest release tag. The `SKILL.md` at the upstream repo root is deployed to `~/.claude/skills/notebooklm/` on sync.
 
-The skill file records the upstream package version in an HTML comment near the top. To check whether PyPI has a newer package release:
+To check whether a newer release is available upstream:
 
 ```bash
-./scripts/check-notebooklm-skill-update.sh
+./scripts/check-external-skills-update.sh
 ```
 
-When an update is available, install the new `notebooklm-py` release, run `notebooklm skill install`, then copy the generated `SKILL.md` back into `runtime/skills/notebooklm/SKILL.md` so the harness remains the source of truth.
+Run `./scripts/sync.sh --platform claude` (and codex) to pull in any available update.
 
 ## Local Ops Workflow
 

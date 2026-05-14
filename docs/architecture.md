@@ -52,7 +52,7 @@ Ignored generated local output lives in:
 - `.local/backups/`
 - `.local/external/`
 
-External skills in `ops/external-skills.json` are fetched into `.local/external/` and injected into the sync action list. Skills that need local edits or expensive upstream repositories should instead live under `runtime/skills/`; `runtime/skills/notebooklm/` follows this model and records its upstream `notebooklm-py` version in the skill file. Use `scripts/check-external-skills-update.sh` to check whether any registered external skills have upstream updates available.
+External skills in `ops/external-skills.json` are fetched into `.local/external/` and injected into the sync action list. Use `scripts/check-external-skills-update.sh` to check whether any registered external skills have upstream updates available.
 
 This layer answers:
 
@@ -95,7 +95,7 @@ Doctor reads stored `componentTargets` and `componentDigests` from the state fil
 - `runtime/rules/`: policy and quality expectations
 - `runtime/platforms/`: Claude- and Codex-specific runtime files and install maps
 - `ops/manifest.json`: component and profile declarations
-- `scripts/`: operational entrypoints (`sync.sh`, `doctor.sh`, `repair.sh`, `list-installed.sh`, `check-external-skills-update.sh`, `check-notebooklm-skill-update.sh`)
+- `scripts/`: operational entrypoints (`sync.sh`, `doctor.sh`, `repair.sh`, `list-installed.sh`, `check-external-skills-update.sh`)
 - `scripts/lib/`: shared libraries (`layout-common.sh`, `sync-common.sh`, `ops-common.sh`)
 - `tests/lib/`: shared test helpers
 - `tests/ops/`: integration test suites (sync pipeline, workflow structural contracts)
