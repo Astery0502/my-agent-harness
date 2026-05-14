@@ -1,11 +1,5 @@
 [
   {
-    "name": "skill-creator",
-    "url": "https://github.com/anthropics/skills",
-    "ref": "main",
-    "sub_path": "skills/skill-creator"
-  },
-  {
     "name": "notebooklm",
     "url": "https://github.com/teng-lin/notebooklm-py",
     "ref": "latest-release"

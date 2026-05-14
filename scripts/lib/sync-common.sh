@@ -7,8 +7,6 @@ SYNC_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=./layout-common.sh
 source "$SYNC_LIB_DIR/layout-common.sh"
-# shellcheck source=./external-common.sh
-source "$SYNC_LIB_DIR/external-common.sh"
 
 sync_fail() {
   echo "sync error: $*" >&2
@@ -401,6 +399,32 @@ sync_digest() {
     )
   ' <<<"$actions")"
 
+  # Expand non-empty directory targets to per-entry paths so that unmanaged
+  # entries in those directories do not affect digest comparisons.
+  # Empty directories fall back to recording the directory path itself.
+  local _expanded="{}"
+  local _dcid _dtarget
+  while IFS=$'\t' read -r _dcid _dtarget; do
+    [[ -n "$_dcid" ]] || continue
+    if [[ -d "$build_root/$_dtarget" ]]; then
+      local _dentries=()
+      local _de
+      while IFS= read -r _de; do
+        [[ -n "$_de" ]] && _dentries+=("$_dtarget/$_de")
+      done < <(ls -1 "$build_root/$_dtarget" 2>/dev/null | LC_ALL=C sort)
+      if [[ ${#_dentries[@]} -gt 0 ]]; then
+        local _dej
+        _dej="$(printf '%s\n' "${_dentries[@]}" | jq -Rc '[.,inputs]')"
+        _expanded="$(jq -c --arg c "$_dcid" --argjson e "$_dej" '.[$c] += $e' <<<"$_expanded")"
+      else
+        _expanded="$(jq -c --arg c "$_dcid" --arg t "$_dtarget" '.[$c] += [$t]' <<<"$_expanded")"
+      fi
+    else
+      _expanded="$(jq -c --arg c "$_dcid" --arg t "$_dtarget" '.[$c] += [$t]' <<<"$_expanded")"
+    fi
+  done < <(jq -r 'to_entries[] | .key as $k | .value[] | [$k, .] | @tsv' <<<"$component_targets_map")
+  component_targets_map="$_expanded"
+
   local component_digests
   component_digests="$(sync_compute_actual_digests "$build_root" "$component_targets_map")"
 
@@ -467,6 +491,17 @@ sync_deploy() {
 
       while IFS= read -r stale_target; do
         [[ -n "$stale_target" ]] || continue
+        # Skip if stale_target is a parent of any current target.
+        # This handles migration from directory-level to per-entry-level state
+        # without removing a directory whose children are now tracked individually.
+        local _stp=0 _ctl
+        while IFS= read -r _ctl; do
+          [[ -n "$_ctl" ]] || continue
+          if [[ "$_ctl" == "$stale_target"/* ]]; then
+            _stp=1; break
+          fi
+        done < <(jq -r '.[]' <<<"$current_targets_json")
+        [[ $_stp -eq 0 ]] || continue
         if [[ -e "$target_root/$stale_target" ]]; then
           if [[ -z "$backup_root" ]]; then
             local ts
@@ -507,37 +542,74 @@ sync_deploy() {
           done <<< "$deployed_dir_targets"
         fi
 
-        if [[ -e "$dest_path" && $covered -eq 0 ]]; then
-          if [[ -z "$backup_root" ]]; then
-            local ts
-            ts="$(date -u +"%Y%m%dT%H%M%SZ")"
-            backup_root="$(layout_backup_root_for "$repo_root" "$platform" "$ts")"
-            mkdir -p "$backup_root"
-          fi
-          mkdir -p "${backup_root}/${target_path%/*}"
-          rm -rf "$backup_root/$target_path"
-          cp -R "$dest_path" "$backup_root/$target_path"
-          backup_count=$((backup_count + 1))
-        fi
-
         mkdir -p "${dest_path%/*}"
 
         if [[ -f "$source_path" ]]; then
+          if [[ -e "$dest_path" && $covered -eq 0 ]]; then
+            if [[ -z "$backup_root" ]]; then
+              local ts
+              ts="$(date -u +"%Y%m%dT%H%M%SZ")"
+              backup_root="$(layout_backup_root_for "$repo_root" "$platform" "$ts")"
+              mkdir -p "$backup_root"
+            fi
+            mkdir -p "${backup_root}/${target_path%/*}"
+            rm -rf "$backup_root/$target_path"
+            cp -R "$dest_path" "$backup_root/$target_path"
+            backup_count=$((backup_count + 1))
+          fi
           local tmp
           tmp="$(mktemp "$work_dir/file.XXXXXX")"
           cp "$source_path" "$tmp"
           rm -rf "$dest_path"
           mv "$tmp" "$dest_path"
         elif [[ -d "$source_path" ]]; then
-          local tmp
-          tmp="$(mktemp -d "$work_dir/dir.XXXXXX")"
-          if find "$source_path" -mindepth 1 -print -quit | grep -q .; then
-            cp -R "$source_path"/. "$tmp"/
-          fi
-          rm -rf "$dest_path"
-          mv "$tmp" "$dest_path"
-          deployed_dir_targets="${deployed_dir_targets:+$deployed_dir_targets
-}$target_path"
+          # Per-entry replace: only replace managed sub-entries; leave unmanaged
+          # entries in the target directory untouched.
+          mkdir -p "$dest_path"
+          local _entry _esrc _edest _etgt _ecov _etmp
+          while IFS= read -r _entry; do
+            [[ -n "$_entry" ]] || continue
+            _esrc="$source_path/$_entry"
+            _edest="$dest_path/$_entry"
+            _etgt="$target_path/$_entry"
+
+            _ecov=0
+            if [[ -n "$deployed_dir_targets" ]]; then
+              while IFS= read -r _ddt; do
+                [[ -z "$_ddt" ]] && continue
+                if [[ "$_etgt" == "$_ddt"/* ]]; then
+                  _ecov=1; break
+                fi
+              done <<< "$deployed_dir_targets"
+            fi
+
+            if [[ -e "$_edest" && $_ecov -eq 0 ]]; then
+              if [[ -z "$backup_root" ]]; then
+                local ts
+                ts="$(date -u +"%Y%m%dT%H%M%SZ")"
+                backup_root="$(layout_backup_root_for "$repo_root" "$platform" "$ts")"
+                mkdir -p "$backup_root"
+              fi
+              mkdir -p "${backup_root}/${_etgt%/*}"
+              rm -rf "$backup_root/$_etgt"
+              cp -R "$_edest" "$backup_root/$_etgt"
+              backup_count=$((backup_count + 1))
+            fi
+
+            if [[ -f "$_esrc" ]]; then
+              _etmp="$(mktemp "$work_dir/file.XXXXXX")"
+              cp "$_esrc" "$_etmp"
+              rm -rf "$_edest"
+              mv "$_etmp" "$_edest"
+            elif [[ -d "$_esrc" ]]; then
+              _etmp="$(mktemp -d "$work_dir/dir.XXXXXX")"
+              cp -R "$_esrc"/. "$_etmp"/
+              rm -rf "$_edest"
+              mv "$_etmp" "$_edest"
+              deployed_dir_targets="${deployed_dir_targets:+$deployed_dir_targets
+}$_etgt"
+            fi
+          done < <(ls -1 "$source_path" 2>/dev/null | LC_ALL=C sort)
         else
           sync_fail "built target path missing: $target_path"
         fi
@@ -691,6 +763,37 @@ sync_target_root_for() {
   esac
 }
 
+# Warn (stderr, non-blocking) if any registered external skill has upstream changes.
+# Reads ops/external-skills.json; each entry may carry installed_sha (set by the
+# agent on import). Skips entries without installed_sha — nothing to compare.
+# Uses git ls-remote so no local clone is required.
+_externals_check_updates() {
+  local repo_root="$1"
+  local registry_file="$repo_root/ops/external-skills.json"
+  [[ -f "$registry_file" ]] || return 0
+
+  local name url ref installed_sha upstream
+  while IFS=$'\t' read -r name url ref installed_sha; do
+    [[ -n "$name" && -n "$url" && -n "$installed_sha" ]] || continue
+
+    upstream=""
+    if [[ "$ref" == "latest-release" ]]; then
+      upstream="$(GIT_TERMINAL_PROMPT=0 git ls-remote --tags --refs "$url" 2>/dev/null \
+        | awk '{print $2}' | sed 's|refs/tags/||' \
+        | grep -E '^v?[0-9]+(\.[0-9]+)+$' | sort -V | tail -1)" || true
+    else
+      upstream="$(GIT_TERMINAL_PROMPT=0 git ls-remote "$url" "refs/heads/$ref" 2>/dev/null \
+        | awk '{print $1}')" || true
+    fi
+
+    [[ -n "$upstream" ]] || continue
+    [[ "$installed_sha" != "$upstream" ]] || continue
+
+    echo "warning: external skill '$name' has update available ($installed_sha → $upstream)" >&2
+  done < <(jq -r '.[] | [(.name // ""), (.url // ""), (.ref // "main"), (.installed_sha // "")] | @tsv' \
+    "$registry_file" 2>/dev/null)
+}
+
 sync_run() {
   local repo_root_input="$1"
   local platform="$2"
@@ -705,12 +808,10 @@ sync_run() {
 
   repo_root="$(realpath "$repo_root_input")"
   layout_bootstrap_local_dirs "$repo_root"
-
-  externals_fetch_all "$repo_root"
+  _externals_check_updates "$repo_root"
 
   local actions
   actions="$(sync_resolve "$repo_root" "$platform" "$profile")"
-  actions="$(externals_inject_actions "$actions" "$repo_root")"
 
   local work_dir
   work_dir="$(mktemp -d)"

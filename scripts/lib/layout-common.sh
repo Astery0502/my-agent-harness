@@ -78,29 +78,12 @@ layout_backup_root_for() {
   printf '%s/%s/%s\n' "$(layout_backups_dir "$repo_root")" "$platform" "$timestamp"
 }
 
-layout_external_registry_file() {
-  local repo_root="$1"
-  printf '%s/ops/external-skills.json\n' "$repo_root"
-}
-
-layout_external_dir() {
-  local repo_root="$1"
-  printf '%s/.local/external\n' "$repo_root"
-}
-
-layout_external_skill_dir() {
-  local repo_root="$1"
-  local name="$2"
-  printf '%s/%s\n' "$(layout_external_dir "$repo_root")" "$name"
-}
-
 layout_bootstrap_local_dirs() {
   local repo_root="$1"
-  # Inline paths to avoid 5 subshell forks; must stay in sync with layout functions above.
+  # Inline paths to avoid 4 subshell forks; must stay in sync with layout functions above.
   mkdir -p \
     "$repo_root/.local/install-state/live" \
     "$repo_root/.local/install-state/staging" \
     "$repo_root/.local/staging" \
-    "$repo_root/.local/backups" \
-    "$repo_root/.local/external"
+    "$repo_root/.local/backups"
 }

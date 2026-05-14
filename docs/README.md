@@ -4,7 +4,8 @@ Use this folder for active lookup first, archive second.
 
 ## Active Docs
 
-- `architecture.md`: current repository structure and ownership boundaries
+- `../CONTEXT.md`: repository structure, folder responsibilities, and where to look
+- `../PIPELINE.md`: commands, sync pipeline, install flow, and extension procedures
 - `reference/component-coordination.md`: how runtime surfaces and ops surfaces fit together
 - `evolution-front-experiment.md`: current write-up for the opt-in evolution-front workflow experiment
 - `decisions/`: accepted architecture decisions

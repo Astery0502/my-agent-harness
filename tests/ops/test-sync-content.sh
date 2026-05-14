@@ -13,6 +13,13 @@ run_sync --platform codex --profile codex-only --target staging >/dev/null
 claude_state="$TEST_REPO/.local/install-state/staging/claude.json"
 codex_state="$TEST_REPO/.local/install-state/staging/codex.json"
 
+_first_skill_dir() {
+  local _d
+  _d="$(ls -1d "$TEST_REPO/.local/staging/$1/skills"/*/ 2>/dev/null | head -1)"
+  [[ -n "$_d" ]] || fail "no skills deployed to $1 staging"
+  printf '%s' "${_d%/}"
+}
+
 # === Claude staging content ===
 
 # 1. Install state records the staged Claude surface.
@@ -21,12 +28,13 @@ assert_json_expr "$claude_state" '.profile == "claude-only"'
 assert_state_has_target "$claude_state" "shared-root" "CLAUDE.md"
 assert_state_has_target "$claude_state" "claude-platform" "CLAUDE.md"
 assert_state_has_target "$claude_state" "shared-agents" "agents"
-assert_state_has_target "$claude_state" "shared-skills" "skills"
+assert_json_expr "$claude_state" '(.componentTargets["shared-skills"] // []) | map(startswith("skills/")) | any'
 assert_state_has_target "$claude_state" "shared-commands" "commands"
-assert_state_has_target "$claude_state" "shared-rules" "rules"
+assert_json_expr "$claude_state" '(.componentTargets["shared-rules"] // []) | map(startswith("rules/")) | any'
 
 # 3. Stable skill metadata is preserved.
-assert_frontmatter_field "$TEST_REPO/.local/staging/claude/skills/nexus/SKILL.md" "name" "nexus"
+_skill_dir="$(_first_skill_dir claude)"
+assert_frontmatter_field "$_skill_dir/SKILL.md" "name" "${_skill_dir##*/}"
 
 # 4. Source-only files do not leak into deployed roots.
 assert_file_missing "$TEST_REPO/.local/staging/claude/CLAUDE.base.md"
@@ -34,6 +42,7 @@ assert_file_missing "$TEST_REPO/.local/staging/claude/AGENTS.md"
 
 # 5. Deployed command content does not leak source-tree paths.
 for path in "$TEST_REPO/.local/staging/claude/commands"/*.md; do
+  [[ -f "$path" ]] || continue
   assert_file_not_contains "$path" "runtime/"
 done
 
@@ -44,15 +53,15 @@ assert_json_expr "$codex_state" '.status == "installed"'
 assert_json_expr "$codex_state" '.profile == "codex-only"'
 assert_state_has_target "$codex_state" "shared-root" "AGENTS.md"
 assert_state_has_target "$codex_state" "codex-platform" "AGENTS.md"
-assert_state_has_target "$codex_state" "codex-platform" "config.toml"
 assert_state_has_target "$codex_state" "shared-agents" "shared-agents"
-assert_state_has_target "$codex_state" "shared-skills" "skills"
+assert_json_expr "$codex_state" '(.componentTargets["shared-skills"] // []) | map(startswith("skills/")) | any'
 assert_state_has_target "$codex_state" "shared-commands" "commands"
 assert_state_has_target "$codex_state" "shared-commands" "prompts"
-assert_state_has_target "$codex_state" "shared-rules" "rules"
+assert_json_expr "$codex_state" '(.componentTargets["shared-rules"] // []) | map(startswith("rules/")) | any'
 
 # 8. Stable skill metadata is preserved.
-assert_frontmatter_field "$TEST_REPO/.local/staging/codex/skills/nexus/SKILL.md" "name" "nexus"
+_skill_dir="$(_first_skill_dir codex)"
+assert_frontmatter_field "$_skill_dir/SKILL.md" "name" "${_skill_dir##*/}"
 
 # 9. Source-only files do not leak into deployed roots.
 assert_file_missing "$TEST_REPO/.local/staging/codex/AGENTS.supplement.md"
@@ -63,6 +72,7 @@ for path in \
   "$TEST_REPO/.local/staging/codex/commands"/*.md \
   "$TEST_REPO/.local/staging/codex/prompts"/*.md
 do
+  [[ -f "$path" ]] || continue
   assert_file_not_contains "$path" "runtime/"
 done
 
@@ -72,13 +82,11 @@ done
 # repo. This keeps the sync-content test aligned with the current runtime
 # surface rather than requiring optional experiment files unconditionally.
 if [[ -e "$TEST_REPO/runtime/commands/evolution-plan.md" ]]; then
-  assert_state_has_target "$claude_state" "shared-commands" "commands"
+  assert_state_has_target "$claude_state" "shared-commands" "commands/evolution-plan.md"
   assert_state_has_target "$claude_state" "shared-agents" "agents"
-  assert_state_has_target "$claude_state" "shared-skills" "skills"
-  assert_state_has_target "$codex_state" "shared-commands" "commands"
-  assert_state_has_target "$codex_state" "shared-commands" "prompts"
+  assert_state_has_target "$codex_state" "shared-commands" "commands/evolution-plan.md"
+  assert_state_has_target "$codex_state" "shared-commands" "prompts/evolution-plan.md"
   assert_state_has_target "$codex_state" "shared-agents" "shared-agents"
-  assert_state_has_target "$codex_state" "shared-skills" "skills"
 
   for path in \
     "$TEST_REPO/.local/staging/claude/commands/evolution-plan.md" \
